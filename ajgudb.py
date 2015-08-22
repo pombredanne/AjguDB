@@ -60,11 +60,8 @@ class TupleSpace(object):
         self.env.set_cache_max(10, 0)
         self.env.set_cachesize(5, 0)
         flags = (
-            DB_CREATE
-            | DB_INIT_LOG
-            | DB_INIT_TXN
-            | DB_INIT_MPOOL
-            | DB_INIT_LOCK
+            DB_CREATE,
+            DB_INIT_MPOOL
         )
         self.env.log_set_config(DB_LOG_AUTO_REMOVE, True)
         self.env.set_lg_max(1024 ** 3)
@@ -84,28 +81,16 @@ class TupleSpace(object):
                 DB_BTREE,
                 flags,
                 0,
-                txn=txn
             )
             return elements
-        txn = self.env.txn_begin()
+        # txn = self.env.txn_begin()
         self.tuples = new_store('tuples')
         self.index = new_store('index')
-        txn.commit()
+        # txn.commit()
         self.txn = None
 
-    @contextmanager
-    def transaction(self):
-        self.txn = self.env.txn_begin()
-        try:
-            yield
-        except Exception as exc:
-            self.txn.abort()
-            raise exc
-        else:
-            self.txn.commit()
-
     def get(self, uid):
-        cursor = self.tuples.cursor(txn=self.txn)
+        cursor = self.tuples.cursor()
 
         def __get():
             record = cursor.set_range(pack(uid, ''))
@@ -132,13 +117,13 @@ class TupleSpace(object):
 
     def add(self, uid, **properties):
         for key, value in properties.items():
-            self.tuples.put(pack(uid, key), pack(value), txn=self.txn)
-            self.index.put(pack(key, value, uid), '', txn=self.txn)
+            self.tuples.put(pack(uid, key), pack(value))
+            self.index.put(pack(key, value, uid), '')
 
     def delete(self, uid):
         # delete item from main table and index
-        cursor = self.tuples.cursor(txn=self.txn)
-        index = self.index.cursor(txn=self.txn)
+        cursor = self.tuples.cursor()
+        index = self.index.cursor()
         record = cursor.set_range(pack(uid, ''))
         if record:
             key, value = record
@@ -177,13 +162,13 @@ class TupleSpace(object):
         self.env.close()
 
     def debug(self):
-        for key, value in self.tuples.items(self.txn):
+        for key, value in self.tuples.items():
             uid, key = unpack(key)
             value = unpack(value)[0]
             print(uid, key, value)
 
     def query(self, key, value=''):
-        cursor = self.index.cursor(txn=self.txn)
+        cursor = self.index.cursor()
         match = (key, value) if value else (key,)
 
         record = cursor.set_range(pack(key, value))
@@ -277,6 +262,34 @@ class Edge(object):
         self._graphdb._tuples.delete(self.uid)
 
 
+class ImprovedIterator(object):
+
+    sentinel = object()
+
+    def __init__(self, iterator, query):
+        self.iterator = iterator
+        self.query = query
+
+    def __iter__(self):
+        return self.iterator
+
+    def one(self, default=sentinel):
+        try:
+            return next(self.iterator)
+        except StopIteration:
+            if default is self.sentinel:
+                msg = 'not found. Query: %s' % self.query
+                raise AjguDBException(msg)
+            else:
+                return default
+
+    def all(self):
+        return list(self.iterator)
+
+    def count(self):
+        return reduce(lambda x, y: x+1, self.iterator, 0)
+
+
 class AjguDB(object):
 
     def __init__(self, path):
@@ -310,7 +323,7 @@ class AjguDB(object):
                 return Edge(self, uid, properties)
         else:
             raise AjguDBException('not found')
-
+        
     def vertex(self, **properties):
         uid = self._uid()
         self._tuples.add(uid, _meta_type='vertex', **properties)
@@ -324,9 +337,12 @@ class AjguDB(object):
         return Edge(self, uid, properties)
 
     def filter(self, **filters):
-        filters = set(filters.items())
-        key, value = filters.pop()
-        for _, _, uid in self._tuples.query(key, value):
-            element = self.get(uid)
-            if filters.issuperset(set(element.properties.items())):
-                yield element
+        def __iter():
+            items = set(list(filters.items()))
+            key, value = filters.items()[0]
+            for _, _, uid in self._tuples.query(key, value):
+                element = self.get(uid)
+                if items.issubset(element.properties.items()):
+                    yield element
+
+        return ImprovedIterator(__iter(), filters)

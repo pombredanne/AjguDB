@@ -227,7 +227,7 @@ class Vertex(dict):
         self._graphdb._tuples.update(
             self.uid,
             _meta_type='vertex',
-            **self.properties
+            **self
         )
         return self
 
@@ -261,7 +261,7 @@ class Edge(dict):
             _meta_type='edge',
             _meta_start=self._start,
             _meta_end=self._end,
-            **self.properties
+            **self
         )
         return self
 
@@ -304,7 +304,19 @@ class ImprovedIterator(object):
         query = dict(self.query)
         query['end'] = True
         return type(self)(__iter(), query)
-    
+
+    def start(self):
+        def __iter():
+            for item in self.iterator:
+                if item:
+                    yield item.start()
+        query = dict(self.query)
+        query['start'] = True
+        return type(self)(__iter(), query)
+
+    def descending(self, key):
+        return sorted(self.iterator, key=lambda x: x[key], reverse=True)
+
 
 class AjguDB(object):
 

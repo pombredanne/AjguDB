@@ -6,6 +6,7 @@ from unittest import TestCase
 from ajgudb import pack
 from ajgudb import unpack
 from ajgudb import AjguDB
+from ajgudb import TupleSpace
 from ajgudb import AjguDBException
 
 
@@ -41,6 +42,38 @@ class TestPacking(TestCase):
         unpacked = unpack(packed)
         self.assertEqual(unpacked, [123, 'foobar', 3.14, dict(a='b')])
 
+
+class TestTupleSpace(TestCase):
+
+    def setUp(self):
+        os.makedirs('/tmp/tuplespace')
+        self.tuplespace = TupleSpace('/tmp/tuplespace')
+
+    def tearDown(self):
+        self.tuplespace.close()
+        rmtree('/tmp/tuplespace')
+
+    def test_add_and_get(self):
+        self.tuplespace.add(1, key='value')
+        self.assertEqual(self.tuplespace.get(1), dict(key='value'))
+
+    def test_add_and_query(self):
+        self.tuplespace.add(1, key='value')
+        self.tuplespace.add(2, key='value')
+        out = list(self.tuplespace.query('key', 'value'))
+        self.assertEqual(out, [['key', 'value', 1], ['key', 'value', 2]])
+
+    def test_add_and_query_key_only(self):
+        self.tuplespace.add(1, key='value')
+        self.tuplespace.add(2, key='something')
+        out = list(self.tuplespace.query('key'))
+        self.assertEqual(out, [['key', 'value', 1], ['key', 'something', 2]])
+
+    def test_add_and_query_key_only(self):
+        self.tuplespace.add(1, key='value')
+        self.tuplespace.delete(1)
+        out = list(self.tuplespace.query('key'))
+        self.assertEqual(out, [])
 
 class DatabaseTestCase(TestCase):
 

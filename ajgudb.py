@@ -1,14 +1,10 @@
+import os
 import struct
 
 from msgpack import dumps
 from msgpack import loads
 
-from bsddb3.db import DB
-from bsddb3.db import DBEnv
-from bsddb3.db import DB_BTREE
-from bsddb3.db import DB_CREATE
-from bsddb3.db import DB_INIT_MPOOL
-from bsddb3.db import DB_LOG_AUTO_REMOVE
+from plyvel import DB
 
 
 class AjguDBException(Exception):
@@ -52,128 +48,64 @@ class TupleSpace(object):
     """Generic database"""
 
     def __init__(self, path):
-        self.env = DBEnv()
-        self.env.set_cache_max(10, 0)
-        self.env.set_cachesize(5, 0)
-        flags = (
-            DB_CREATE
-            | DB_INIT_MPOOL
-        )
-        self.env.log_set_config(DB_LOG_AUTO_REMOVE, True)
-        self.env.set_lg_max(1024 ** 3)
-        self.env.open(
-            path,
-            flags,
-            0
-        )
+        self.tuples = DB(os.path.join(path, 'tuples'), create_if_missing=True)
+        self.index = DB(os.path.join(path, 'index'), create_if_missing=True)
 
-        # create vertices and edges k/v stores
-        def new_store(name):
-            flags = DB_CREATE
-            elements = DB(self.env)
-            elements.open(
-                name,
-                None,
-                DB_BTREE,
-                flags,
-                0,
-            )
-            return elements
-        # txn = self.env.txn_begin()
-        self.tuples = new_store('tuples')
-        self.index = new_store('index')
-        # txn.commit()
-        self.txn = None
+    def close(self):
+        self.index.close()
+        self.tuples.close()
 
     def get(self, uid):
-        cursor = self.tuples.cursor()
-
         def __get():
-            record = cursor.set_range(pack(uid, ''))
-            if not record:
-                return
-            key, value = record
-            while True:
+            for key, value in self.tuples.iterator(start=pack(uid)):
                 other, key = unpack(key)
                 if other == uid:
                     value = unpack(value)[0]
                     yield key, value
-                    record = cursor.next()
-                    if record:
-                        key, value = record
-                        continue
-                    else:
-                        break
                 else:
                     break
 
         tuples = dict(__get())
-        cursor.close()
         return tuples
 
     def add(self, uid, **properties):
+        tuples = self.tuples.write_batch(transaction=True)
+        index = self.index.write_batch(transaction=True)
         for key, value in properties.items():
-            self.tuples.put(pack(uid, key), pack(value))
-            self.index.put(pack(key, value, uid), '')
+            tuples.put(pack(uid, key), pack(value))
+            index.put(pack(key, value, uid), '')
+        tuples.write()
+        index.write()
 
     def delete(self, uid):
-        # delete item from main table and index
-        cursor = self.tuples.cursor()
-        index = self.index.cursor()
-        record = cursor.set_range(pack(uid, ''))
-        if record:
-            key, value = record
-        else:
-            cursor.close()
-            raise AjguDBException('not found')
-        while True:
-            other, key = unpack(key)
-            if other == uid:
-                # remove tuple from main index
-                cursor.delete()
-
-                # remove it from index
+        tuples = self.tuples.write_batch(transaction=True)
+        index = self.index.write_batch(transaction=True)
+        for key, value in self.tuples.iterator(start=pack(uid)):
+            other, name = unpack(key)
+            if uid == other:
+                tuples.delete(key)
                 value = unpack(value)[0]
-                index.set(pack(key, value, uid))
-                index.delete()
-
-                # continue
-                record = cursor.next()
-                if record:
-                    key, value = record
-                    continue
-                else:
-                    break
+                index.delete(pack(name, value, uid))
             else:
                 break
-        cursor.close()
+        tuples.write()
+        index.write()
 
     def update(self, uid, **properties):
         self.delete(uid)
         self.add(uid, **properties)
 
-    def close(self):
-        self.index.close()
-        self.tuples.close()
-        self.env.close()
-
     def debug(self):
-        for key, value in self.tuples.items():
+        for key, value in self.tuples.iterator():
             uid, key = unpack(key)
             value = unpack(value)[0]
             print(uid, key, value)
 
     def query(self, key, value=''):
-        cursor = self.index.cursor()
         match = (key, value) if value else (key,)
 
-        record = cursor.set_range(pack(key, value))
-        if not record:
-            cursor.close()
-            return
-
-        while True:
-            key, _ = record
+        iterator = self.index.iterator(start=pack(key, value))
+        for key, value in iterator:
             other = unpack(key)
             ok = reduce(
                 lambda previous, x: (cmp(*x) == 0) and previous,
@@ -182,12 +114,8 @@ class TupleSpace(object):
             )
             if ok:
                 yield other
-                record = cursor.next()
-                if not record:
-                    break
             else:
                 break
-        cursor.close()
 
 
 class Vertex(dict):

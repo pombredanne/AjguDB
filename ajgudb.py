@@ -1,5 +1,4 @@
 import struct
-from contextlib import contextmanager
 
 from msgpack import dumps
 from msgpack import loads
@@ -8,9 +7,6 @@ from bsddb3.db import DB
 from bsddb3.db import DBEnv
 from bsddb3.db import DB_BTREE
 from bsddb3.db import DB_CREATE
-from bsddb3.db import DB_INIT_LOG
-from bsddb3.db import DB_INIT_TXN
-from bsddb3.db import DB_INIT_LOCK
 from bsddb3.db import DB_INIT_MPOOL
 from bsddb3.db import DB_LOG_AUTO_REMOVE
 
@@ -60,8 +56,8 @@ class TupleSpace(object):
         self.env.set_cache_max(10, 0)
         self.env.set_cachesize(5, 0)
         flags = (
-            DB_CREATE,
-            DB_INIT_MPOOL
+            DB_CREATE
+            | DB_INIT_MPOOL
         )
         self.env.log_set_config(DB_LOG_AUTO_REMOVE, True)
         self.env.set_lg_max(1024 ** 3)
@@ -194,27 +190,38 @@ class TupleSpace(object):
         cursor.close()
 
 
-class Vertex(object):
+class Vertex(dict):
 
     def __init__(self, graphdb, uid, properties):
         self._graphdb = graphdb
         self.uid = uid
-        self.properties = properties
+        super(Vertex, self).__init__(properties)
 
     def __eq__(self, other):
         return self.uid == other.uid
 
-    def _iter_edges(self, kind):
-        records = self._graphdb._tuples.query('_meta_%s' % kind, self.uid)
-        for key, name, uid in records:
-            properties = self._graphdb._tuples.get(uid)
-            yield Edge(self._graphdb, uid, properties)
+    def _iter_edges(self, _vertex, **filters):
+        def __edges():
+            key = '_meta_%s' % _vertex
+            records = self._graphdb._tuples.query(key, self.uid)
+            for key, name, uid in records:
+                properties = self._graphdb._tuples.get(uid)
+                yield Edge(self._graphdb, uid, properties)
 
-    def incomings(self, label=None):
-        return self._iter_edges('end')
+        def __filter(edges):
+            items = set(list(filters.items()))
+            for edge in edges:
+                if items.issubset(edge.items()):
+                    yield edge
 
-    def outgoings(self, label=None):
-        return self._iter_edges('start')
+        query = dict(property='_meta_' + _vertex, uid=self.uid)
+        return ImprovedIterator(__filter(__edges()), query)
+
+    def incomings(self, **filters):
+        return self._iter_edges('end', **filters)
+
+    def outgoings(self, **filters):
+        return self._iter_edges('start', **filters)
 
     def save(self):
         self._graphdb._tuples.update(
@@ -228,14 +235,14 @@ class Vertex(object):
         self._graphdb._tuples.delete(self.uid)
 
 
-class Edge(object):
+class Edge(dict):
 
     def __init__(self, graphdb, uid, properties):
         self._graphdb = graphdb
         self.uid = uid
         self._start = properties.pop('_meta_start')
         self._end = properties.pop('_meta_end')
-        self.properties = properties
+        super(Edge, self).__init__(properties)
 
     def __eq__(self, other):
         return self.uid == other.uid
@@ -289,6 +296,15 @@ class ImprovedIterator(object):
     def count(self):
         return reduce(lambda x, y: x+1, self.iterator, 0)
 
+    def end(self):
+        def __iter():
+            for item in self.iterator:
+                if item:
+                    yield item.end()
+        query = dict(self.query)
+        query['end'] = True
+        return type(self)(__iter(), query)
+    
 
 class AjguDB(object):
 
@@ -323,7 +339,7 @@ class AjguDB(object):
                 return Edge(self, uid, properties)
         else:
             raise AjguDBException('not found')
-        
+
     def vertex(self, **properties):
         uid = self._uid()
         self._tuples.add(uid, _meta_type='vertex', **properties)
@@ -342,7 +358,7 @@ class AjguDB(object):
             key, value = filters.items()[0]
             for _, _, uid in self._tuples.query(key, value):
                 element = self.get(uid)
-                if items.issubset(element.properties.items()):
+                if items.issubset(element.items()):
                     yield element
 
         return ImprovedIterator(__iter(), filters)

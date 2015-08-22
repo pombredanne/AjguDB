@@ -48,12 +48,17 @@ class TupleSpace(object):
     """Generic database"""
 
     def __init__(self, path):
-        self.tuples = DB(os.path.join(path, 'tuples'), create_if_missing=True)
-        self.index = DB(os.path.join(path, 'index'), create_if_missing=True)
+        self.db = DB(
+            os.path.join(path, 'tuples'),
+            create_if_missing=True,
+            lru_cache_size=10*9,
+            bloom_filters_bits=64,
+        )
+        self.tuples = self.db.prefixed_db(b'tuples')
+        self.index = self.db.prefixed_db(b'index')
 
     def close(self):
-        self.index.close()
-        self.tuples.close()
+        self.db.close()
 
     def get(self, uid):
         def __get():

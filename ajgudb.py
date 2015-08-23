@@ -130,6 +130,9 @@ class Vertex(dict):
         self.uid = uid
         super(Vertex, self).__init__(properties)
 
+    def __repr__(self):
+        return '<Vertex %s>' % self.uid
+        
     def __eq__(self, other):
         return self.uid == other.uid
 
@@ -139,7 +142,9 @@ class Vertex(dict):
             records = self._graphdb._tuples.query(key, self.uid)
             for key, name, uid in records:
                 properties = self._graphdb._tuples.get(uid)
-                yield Edge(self._graphdb, uid, properties)
+                properties.pop('_meta_type')
+                edge = Edge(self._graphdb, uid, properties)
+                yield edge
 
         def __filter(edges):
             items = set(list(filters.items()))
@@ -148,7 +153,7 @@ class Vertex(dict):
                     yield edge
 
         query = dict(property='_meta_' + _vertex, uid=self.uid)
-        return ImprovedIterator(__filter(__edges()), query)
+        return list(GremlinIterator(__filter(__edges()), filters=query))
 
     def incomings(self, **filters):
         return self._iter_edges('end', **filters)
@@ -167,6 +172,13 @@ class Vertex(dict):
     def delete(self):
         self._graphdb._tuples.delete(self.uid)
 
+    def link(self, end, **properties):
+        properties['_meta_start'] = self.uid
+        properties['_meta_end'] = end.uid
+        uid = self._graphdb._uid()
+        self._graphdb._tuples.add(uid, _meta_type='edge', **properties)
+        return Edge(self._graphdb, uid, properties)
+
 
 class Edge(dict):
 
@@ -176,6 +188,9 @@ class Edge(dict):
         self._start = properties.pop('_meta_start')
         self._end = properties.pop('_meta_end')
         super(Edge, self).__init__(properties)
+
+    def __repr__(self):
+        return '<Edge %s>' % self.uid
 
     def __eq__(self, other):
         return self.uid == other.uid
@@ -202,20 +217,30 @@ class Edge(dict):
         self._graphdb._tuples.delete(self.uid)
 
 
-class ImprovedIterator(object):
+class GremlinIterator(object):
 
     sentinel = object()
 
-    def __init__(self, iterator, query):
+    def __init__(self, iterator, **query):
         self.iterator = iterator
         self.query = query
 
     def __iter__(self):
         return self.iterator
 
+    def _not_none(self):
+        def __iter():
+            for item in self.iterator:
+                if item:
+                    yield item
+        return __iter()
+
+    def all(self):
+        return list(self._not_none())
+
     def one(self, default=sentinel):
         try:
-            return next(self.iterator)
+            return next(self._not_none())
         except StopIteration:
             if default is self.sentinel:
                 msg = 'not found. Query: %s' % self.query
@@ -223,32 +248,65 @@ class ImprovedIterator(object):
             else:
                 return default
 
-    def all(self):
-        return list(self.iterator)
-
     def count(self):
-        return reduce(lambda x, y: x+1, self.iterator, 0)
-
-    def end(self):
-        def __iter():
-            for item in self.iterator:
-                if item:
-                    yield item.end()
-        query = dict(self.query)
-        query['end'] = True
-        return type(self)(__iter(), query)
+        return reduce(lambda x, y: x+1, self._not_none(), 0)
 
     def start(self):
         def __iter():
-            for item in self.iterator:
-                if item:
-                    yield item.start()
-        query = dict(self.query)
-        query['start'] = True
-        return type(self)(__iter(), query)
+            for item in self._not_none():
+                yield item.start()
+        return type(self)(__iter(), start=True, **self.query)
 
-    def descending(self, key):
-        return sorted(self.iterator, key=lambda x: x[key], reverse=True)
+    def end(self):
+        def __iter():
+            for item in self._not_none():
+                yield item.end()
+        return type(self)(__iter(), end=True, **self.query)
+
+    def both(self):
+        def __iter():
+            for item in self.start():
+                yield item
+            for item in self.end():
+                yield item
+        return type(self)(__iter(), both=True, **self.query)
+
+    def descending(self, key=lambda x: x):
+        __iter = sorted(self._not_none(), key=lambda x: x[key], reverse=True)
+        return type(self)(__iter, descending=True, **self.query)
+
+    def property(self):
+        def __iter():
+            for item in self._not_none:
+                yield item.get(property)
+        return type(self)(__iter(), property=property, **self.query)
+
+    def unique(self):
+        # from ActiveState (MIT)
+        #
+        #   Lazy Ordered Unique elements from an iterator
+        #
+        def __unique(iterable, key=None):
+            seen = set()
+
+            if key is None:
+                # Optimize the common case
+                for item in iterable:
+                    if item in seen:
+                        continue
+                    seen.add(item)
+                    yield item
+
+            else:
+                for item in iterable:
+                    keyitem = key(item)
+                    if keyitem in seen:
+                        continue
+                    seen.add(keyitem)
+                    yield item
+
+        __iter = __unique(self._not_none())
+        return type(self)(__iter, unique=True, **self.query)
 
 
 class AjguDB(object):
@@ -290,13 +348,6 @@ class AjguDB(object):
         self._tuples.add(uid, _meta_type='vertex', **properties)
         return Vertex(self, uid, properties)
 
-    def edge(self, start, end, **properties):
-        uid = self._uid()
-        properties['_meta_start'] = start.uid
-        properties['_meta_end'] = end.uid
-        self._tuples.add(uid, _meta_type='edge', **properties)
-        return Edge(self, uid, properties)
-
     def filter(self, **filters):
         def __iter():
             items = set(list(filters.items()))
@@ -306,4 +357,4 @@ class AjguDB(object):
                 if items.issubset(element.items()):
                     yield element
 
-        return ImprovedIterator(__iter(), filters)
+        return GremlinIterator(__iter(), filters=filters)

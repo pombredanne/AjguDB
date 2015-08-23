@@ -16,7 +16,7 @@ def pack(*values):
         if type(value) is int:
             return '1' + struct.pack('>q', value)
         elif type(value) is str:
-            return '2' + struct.pack('>q', len(value)) + value
+            return '2' + value + '\0'
         else:
             data = dumps(value, encoding='utf-8')
             return '3' + struct.pack('>q', len(data)) + data
@@ -29,9 +29,9 @@ def unpack(packed):
         value = struct.unpack('>q', packed[1:9])[0]
         packed = packed[9:]
     elif kind == '2':
-        size = struct.unpack('>q', packed[1:9])[0]
-        value = packed[9:9+size]
-        packed = packed[size+9:]
+        index = packed.index('\0')
+        value = packed[1:index]
+        packed = packed[index+1:]
     else:
         size = struct.unpack('>q', packed[1:9])[0]
         value = loads(packed[9:9+size])
@@ -52,7 +52,7 @@ class TupleSpace(object):
             os.path.join(path, 'tuples'),
             create_if_missing=True,
             lru_cache_size=10*9,
-            bloom_filters_bits=64,
+            bloom_filter_bits=64,
         )
         self.tuples = self.db.prefixed_db(b'tuples')
         self.index = self.db.prefixed_db(b'index')

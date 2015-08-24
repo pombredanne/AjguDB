@@ -31,11 +31,13 @@ def pack(*values):
     def __pack(value):
         if type(value) is int:
             return '1' + struct.pack('>q', value)
-        elif type(value) is str:
+        elif type(value) is unicode:
             return '2' + value.encode('utf-8') + '\0'
+        elif type(value) is str:
+            return '3' + value + '\0'
         else:
             data = dumps(value, encoding='utf-8')
-            return '3' + struct.pack('>q', len(data)) + data
+            return '4' + struct.pack('>q', len(data)) + data
     return ''.join(map(__pack, values))
 
 
@@ -47,6 +49,10 @@ def unpack(packed):
     elif kind == '2':
         index = packed.index('\0')
         value = packed[1:index].decode('utf-8')
+        packed = packed[index+1:]
+    elif kind == '3':
+        index = packed.index('\0')
+        value = packed[1:index]
         packed = packed[index+1:]
     else:
         size = struct.unpack('>q', packed[1:9])[0]
@@ -428,7 +434,7 @@ class AjguDB(object):
     def _uid(self):
         try:
             counter = self._tuples.get(0)['counter']
-        except KeyError: 
+        except KeyError:
             self._tuples.add(0, counter=1)
             return 1
         else:

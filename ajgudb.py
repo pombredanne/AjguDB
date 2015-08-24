@@ -171,9 +171,6 @@ class Vertex(Base):
         self.uid = uid
         super(Vertex, self).__init__(properties)
 
-    def __repr__(self):
-        return '<Vertex %s>' % self.uid
-
     def _iter_edges(self, _vertex, proc=None, **properties):
         def edges():
             key = '_meta_%s' % _vertex

@@ -255,7 +255,7 @@ class GremlinIterator(object):
             return next(self.iterator)
         except StopIteration:
             if default is self.sentinel:
-                msg = 'not found. Query: %s' % self.query
+                msg = 'not found.'
                 raise AjguDBException(msg)
             else:
                 return default

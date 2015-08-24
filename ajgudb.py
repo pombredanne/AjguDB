@@ -330,16 +330,12 @@ class GremlinIterator(object):
                 yield proc(item)
         return type(self)(iterator())
 
-    def dict(self, **kwargs):
-        if kwargs:
-            def get_dict(item):
-                properties = dict()
-                for key in kwargs.keys():
-                    properties[key] = item.get(key)
-                return properties
-            return self(self).map(get_dict)
-        else:
-            return self(self).map(lambda x: dict(x))
+    def dict(self):
+        def get_dict(x):
+            d = dict(x)
+            d.pop('_meta_type')
+            return d
+        return self.map(get_dict)
 
     def uid(self):
         return self.map(lambda x: x.uid)
@@ -452,7 +448,15 @@ class AjguDB(object):
         return GremlinIterator(iterator()).filter(**properties)
 
     def vertices(self):
-        return self.filter(_meta_type='vertex')
+        def iterator():
+            for _, _, uid in self._tuples.query('_meta_type', 'vertex'):
+                yield self.get(uid)
+
+        return GremlinIterator(iterator())
 
     def edges(self):
-        return self.filter(_meta_type='edge')
+        def iterator():
+            for _, _, uid in self._tuples.query('_meta_type', 'edge'):
+                yield self.get(uid)
+
+        return GremlinIterator(iterator())

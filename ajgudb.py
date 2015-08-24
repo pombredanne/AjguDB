@@ -1,10 +1,27 @@
+# AjuDB - leveldb powered graph database
+# Copyright (C) 2015 Amirouche Boubekki <amirouche@hypermove.net>
+
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+# MA  02110-1301  USA
 import os
 import struct
 
+from plyvel import DB
+
 from msgpack import dumps
 from msgpack import loads
-
-from plyvel import DB
 
 
 class AjguDBException(Exception):
@@ -132,12 +149,12 @@ class Vertex(dict):
 
     def __repr__(self):
         return '<Vertex %s>' % self.uid
-        
+
     def __eq__(self, other):
         return self.uid == other.uid
 
-    def _iter_edges(self, _vertex, **filters):
-        def __edges():
+    def _iter_edges(self, _vertex, proc=None, **properties):
+        def edges():
             key = '_meta_%s' % _vertex
             records = self._graphdb._tuples.query(key, self.uid)
             for key, name, uid in records:
@@ -146,20 +163,13 @@ class Vertex(dict):
                 edge = Edge(self._graphdb, uid, properties)
                 yield edge
 
-        def __filter(edges):
-            items = set(list(filters.items()))
-            for edge in edges:
-                if items.issubset(edge.items()):
-                    yield edge
+        return GremlinIterator(edges()).filter(proc, **properties)
 
-        query = dict(property='_meta_' + _vertex, uid=self.uid)
-        return list(GremlinIterator(__filter(__edges()), filters=query))
+    def incomings(self, proc=None, **properties):
+        return self._iter_edges('end', proc, **properties)
 
-    def incomings(self, **filters):
-        return self._iter_edges('end', **filters)
-
-    def outgoings(self, **filters):
-        return self._iter_edges('start', **filters)
+    def outgoings(self, proc=None, **properties):
+        return self._iter_edges('start', proc, **properties)
 
     def save(self):
         self._graphdb._tuples.update(
@@ -251,35 +261,84 @@ class GremlinIterator(object):
     def count(self):
         return reduce(lambda x, y: x+1, self._not_none(), 0)
 
-    def start(self):
+    def incomings(self, proc, **filters):
         def __iter():
             for item in self._not_none():
-                yield item.start()
-        return type(self)(__iter(), start=True, **self.query)
+                for edge in item.incomings():
+                    yield edge
+        out = type(self)(__iter())
+        if proc or filters:
+            return out.filter(proc, **filters)
+        else:
+            return out
+
+    def outgoings(self, proc=None, **filters):
+        def __iter():
+            for item in self._not_none():
+                for edge in item.outgoings():
+                    yield edge
+        out = type(self)(__iter())
+        if filters or proc:
+            return out.filter(proc, **filters)
+        else:
+            return out
+
+    def both(self, proc=None, **filters):
+        def __iter():
+            for item in self.outgoings():
+                yield item
+            for item in self.incomings():
+                yield item
+        out = type(self)(__iter())
+        if filters or proc:
+            return out.filter(proc, **filters)
+        else:
+            return out
+
+    def start(self):
+        return self.map(lambda x: x.start())
 
     def end(self):
-        def __iter():
+        return self.map(lambda x: x.end())
+
+    def cap(self):
+        raise NotImplementedError()
+
+    def gather(self, proc):
+        def iter_():
+            return proc(self.all())
+        return type(self)(iter_())
+
+    def map(self, proc):
+        def iter_():
             for item in self._not_none():
-                yield item.end()
-        return type(self)(__iter(), end=True, **self.query)
+                yield proc(item.uid)
+        return type(self)(iter_())
 
-    def both(self):
-        def __iter():
-            for item in self.start():
-                yield item
-            for item in self.end():
-                yield item
-        return type(self)(__iter(), both=True, **self.query)
+    def dict(self, **kwargs):
+        if kwargs:
+            def get_dict(item):
+                properties = dict()
+                for key in kwargs.keys():
+                    properties[key] = item.get(key)
+                return properties
+            return self(self).map(get_dict)
+        else:
+            return self(self).map(lambda x: dict(x))
 
-    def descending(self, key=lambda x: x):
-        __iter = sorted(self._not_none(), key=lambda x: x[key], reverse=True)
-        return type(self)(__iter, descending=True, **self.query)
+    def uid(self):
+        return self.map(lambda x: x.uid)
 
-    def property(self):
-        def __iter():
-            for item in self._not_none:
-                yield item.get(property)
-        return type(self)(__iter(), property=property, **self.query)
+    def order(self, key=lambda x: x, reverse=False):
+        __iter = sorted(
+            self._not_none(),
+            key=lambda x: x[key],
+            reverse=reverse
+        )
+        return type(self)(__iter)
+
+    def property(self, name):
+        return self.map(lambda x: x.get(name))
 
     def unique(self):
         # from ActiveState (MIT)
@@ -308,6 +367,24 @@ class GremlinIterator(object):
         __iter = __unique(self._not_none())
         return type(self)(__iter, unique=True, **self.query)
 
+    def filter(self, func=None, **properties):
+        if func:
+            def __iter():
+                for item in self._not_none():
+                    if func(item):
+                        yield item
+            if properties:
+                return type(self)(__iter()).filter(**properties)
+            else:
+                return type(self)(__iter())
+        else:
+            def __iter():
+                filters = set(properties.items())
+                for item in self._not_none():
+                    if filters.issubset(item.items()):
+                        yield item
+            return type(self)(__iter())
+
 
 class AjguDB(object):
 
@@ -329,9 +406,6 @@ class AjguDB(object):
         finally:
             return counter
 
-    def transaction(self):
-        return self._tuples.transaction()
-
     def get(self, uid):
         properties = self._tuples.get(uid)
         if properties:
@@ -348,13 +422,20 @@ class AjguDB(object):
         self._tuples.add(uid, _meta_type='vertex', **properties)
         return Vertex(self, uid, properties)
 
-    def filter(self, **filters):
+    def get_or_create(self, **properties):
+        vertex = self.filter(**properties).one(None)
+        if vertex:
+            return vertex
+        else:
+            return self.vertex(**properties)
+
+    def filter(self, **properties):
         def __iter():
-            items = set(list(filters.items()))
-            key, value = filters.items()[0]
+            items = set(list(properties.items()))
+            key, value = properties.items()[0]
             for _, _, uid in self._tuples.query(key, value):
                 element = self.get(uid)
                 if items.issubset(element.items()):
                     yield element
 
-        return GremlinIterator(__iter(), filters=filters)
+        return GremlinIterator(__iter())

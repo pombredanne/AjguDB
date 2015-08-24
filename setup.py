@@ -14,7 +14,7 @@ setup(
     author_email='amirouche@hypermove.net',
     url='https://github.com/amirouche/ajgudb',
     description='Graph Database for everyday',
-    long_description=read('README.rst'),
+    long_description=read('README.md'),
     py_modules='ajgudb',
     zip_safe=False,
     license='LGPLv2.1 or later',

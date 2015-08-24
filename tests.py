@@ -67,13 +67,15 @@ class TestTupleSpace(TestCase):
         self.tuplespace.add(1, key='value')
         self.tuplespace.add(2, key='something')
         out = list(self.tuplespace.query('key'))
-        self.assertEqual(out, [['key', 'value', 1], ['key', 'something', 2]])
+        self.assertIn(['key', 'value', 1], out)
+        self.assertIn(['key', 'something', 2], out)
 
-    def test_add_and_query_key_only(self):
+    def test_delete(self):
         self.tuplespace.add(1, key='value')
         self.tuplespace.delete(1)
         out = list(self.tuplespace.query('key'))
         self.assertEqual(out, [])
+
 
 class DatabaseTestCase(TestCase):
 
@@ -83,14 +85,7 @@ class DatabaseTestCase(TestCase):
 
     def tearDown(self):
         self.graph.close()
-        try:
-            rmtree('/tmp/ajgudb')
-        except FileNotFoundError:
-            pass
-
-
-def debug(self):
-    self.graph._tuples.debug()
+        rmtree('/tmp/ajgudb')
 
 
 class TestGraphDatabase(DatabaseTestCase):
@@ -133,7 +128,7 @@ class TestGraphDatabase(DatabaseTestCase):
 
         start = self.graph.vertex(label='test')
         end = self.graph.vertex(label='test')
-        edge = self.graph.edge(start, end)
+        edge = start.link(end)
         edge['hello'] = 'world'
         edge.save()
 
@@ -145,12 +140,14 @@ class TestGraphDatabase(DatabaseTestCase):
 
         start = self.graph.vertex(label='start')
         end = self.graph.vertex(label='end')
-        self.graph.edge(start, end)
+        start.link(end)
 
         # retrieve start and end
         start = self.graph.get(start.uid)
         end = self.graph.get(end.uid)
-        self.assertTrue(list(start.outgoings()) and list(end.incomings()))
+
+        self.assertTrue(start.outgoings())
+        self.assertTrue(end.incomings())
 
     def test_delete_vertex(self):
 
@@ -171,7 +168,7 @@ class TestGraphDatabase(DatabaseTestCase):
         start = self.graph.vertex(label='start')
         end = self.graph.vertex(label='end')
         # first edge
-        edge = self.graph.edge(start, end)
+        edge = start.link(end)
 
         # delete edge
         edge = self.graph.get(edge.uid)

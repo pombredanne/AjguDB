@@ -145,7 +145,26 @@ class TupleSpace(object):
                 break
 
 
-class Vertex(dict):
+class Base(dict):
+
+    def delete(self):
+        self._graphdb._tuples.delete(self.uid)
+
+    def __is__(self, other):
+        if type(other) is Base:
+            return self.uid == other.uid
+        if other is True:
+            return True
+        return False
+
+    def __repr__(self):
+        return '<%s %s>' % (type(self).__name__, self.uid)
+
+    def __nonzero__(self):
+        return True
+
+
+class Vertex(Base):
 
     def __init__(self, graphdb, uid, properties):
         self._graphdb = graphdb
@@ -154,9 +173,6 @@ class Vertex(dict):
 
     def __repr__(self):
         return '<Vertex %s>' % self.uid
-
-    def __eq__(self, other):
-        return self.uid == other.uid
 
     def _iter_edges(self, _vertex, proc=None, **properties):
         def edges():
@@ -168,7 +184,10 @@ class Vertex(dict):
                 edge = Edge(self._graphdb, uid, properties)
                 yield edge
 
-        return GremlinIterator(edges()).filter(proc, **properties)
+        if proc or properties:
+            return GremlinIterator(edges()).filter(proc, **properties)
+        else:
+            return GremlinIterator(edges())
 
     def incomings(self, proc=None, **properties):
         return self._iter_edges('end', proc, **properties)
@@ -184,9 +203,6 @@ class Vertex(dict):
         )
         return self
 
-    def delete(self):
-        self._graphdb._tuples.delete(self.uid)
-
     def link(self, end, **properties):
         properties['_meta_start'] = self.uid
         properties['_meta_end'] = end.uid
@@ -195,7 +211,7 @@ class Vertex(dict):
         return Edge(self._graphdb, uid, properties)
 
 
-class Edge(dict):
+class Edge(Base):
 
     def __init__(self, graphdb, uid, properties):
         self._graphdb = graphdb
@@ -203,12 +219,6 @@ class Edge(dict):
         self._start = properties.pop('_meta_start')
         self._end = properties.pop('_meta_end')
         super(Edge, self).__init__(properties)
-
-    def __repr__(self):
-        return '<Edge %s>' % self.uid
-
-    def __eq__(self, other):
-        return self.uid == other.uid
 
     def start(self):
         properties = self._graphdb._tuples.get(self._start)
@@ -349,7 +359,7 @@ class GremlinIterator(object):
     def map(self, proc):
         def iter_():
             for item in self._not_none():
-                yield proc(item.uid)
+                yield proc(item)
         return type(self)(iter_())
 
     def dict(self, **kwargs):

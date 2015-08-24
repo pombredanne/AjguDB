@@ -17,6 +17,11 @@ class TestPacking(TestCase):
         unpacked = unpack(packed)
         self.assertEqual(unpacked[0], 'foobar')
 
+    def test_pack_unicode(self):
+        packed = pack(u'foobar')
+        unpacked = unpack(packed)
+        self.assertEqual(unpacked[0], u'foobar')
+
     def test_pack_multi_str(self):
         packed = pack('foobar', 'spam', 'egg')
         unpacked = unpack(packed)
@@ -91,9 +96,13 @@ class DatabaseTestCase(TestCase):
 class TestGraphDatabase(DatabaseTestCase):
 
     def test_create_vertex(self):
-
         v = self.graph.vertex(label='test')
         self.assertTrue(v)
+
+    def test_idem(self):
+        v = self.graph.vertex(label='test')
+        idem = self.graph.get(v.uid)
+        self.assertEqual(v, idem)
 
     def test_create_and_get_vertex(self):
 
@@ -135,6 +144,8 @@ class TestGraphDatabase(DatabaseTestCase):
         edge = self.graph.get(edge.uid)
 
         self.assertTrue(edge['hello'] == 'world')
+        self.assertEqual(edge.start(), start)
+        self.assertEqual(edge.end(), end)
 
     def test_create_edge_and_checkout_vertex(self):
 
@@ -203,3 +214,87 @@ class TestGremlin(DatabaseTestCase):
         seed.link(self.graph.vertex(label='two'))
         seed.link(self.graph.vertex(label='one'))
         self.assertEqual(seed.outgoings().end().filter(label='one').count(), 2)
+
+    def test_all(self):
+        seed = self.graph.vertex(label='seed')
+        seed.link(self.graph.vertex(label='one'))
+        seed.link(self.graph.vertex(label='two'))
+        seed.link(self.graph.vertex(label='one'))
+        self.assertEqual(len(seed.outgoings().all()), 3)
+
+    def test_one(self):
+        seed = self.graph.vertex(label='seed')
+        edge = seed.link(self.graph.vertex(label='one'))
+        self.assertEqual(seed.outgoings().one(), edge)
+
+    def test_one_none_found(self):
+        seed = self.graph.vertex(label='seed')
+        self.assertEqual(seed.outgoings().one(None), None)
+
+    def test_empty_traversal(self):
+        seed = self.graph.vertex(label='seed')
+        self.assertEqual(seed.outgoings().end().outgoings().all(), [])
+
+    def test_skip(self):
+        seed = self.graph.vertex(label='seed')
+        seed.link(self.graph.vertex(label='one'))
+        seed.link(self.graph.vertex(label='two'))
+        seed.link(self.graph.vertex(label='one'))
+        self.assertEqual(seed.outgoings().skip(2).count(), 1)
+
+    def test_limit(self):
+        seed = self.graph.vertex(label='seed')
+        seed.link(self.graph.vertex(label='one'))
+        seed.link(self.graph.vertex(label='two'))
+        seed.link(self.graph.vertex(label='one'))
+        self.assertEqual(seed.outgoings().limit(2).count(), 2)
+
+    def test_paginator(self):
+        seed = self.graph.vertex(label='seed')
+        list(map(lambda x: seed.link(self.graph.vertex()), range(20)))
+        self.assertEqual(seed.outgoings().paginator(5).count(), 5)
+        self.assertEqual(len(seed.outgoings().paginator(5).one()), 5)
+
+    def test_outgoings(self):
+        seed = self.graph.vertex()
+        other = self.graph.vertex()
+        seed.link(other)
+        other.link(self.graph.vertex())
+        other.link(self.graph.vertex())
+        self.assertEqual(seed.outgoings().end().outgoings().count(), 2)
+
+    def test_incomings(self):
+        seed = self.graph.vertex()
+        other = self.graph.vertex()
+        seed.link(other)
+        end = self.graph.vertex()
+        other.link(end)
+
+        self.assertEqual(end.incomings().start().incomings().count(), 1)
+
+    def test_order(self):
+        seed = self.graph.vertex()
+        seed.link(self.graph.vertex(value=5))
+        seed.link(self.graph.vertex(value=4))
+        seed.link(self.graph.vertex(value=1))
+        self.assertEqual(
+            seed.outgoings().end().property('value').all(),
+            [5, 4, 1]
+        )
+        reversed = seed.outgoings().end().property('value')
+        reversed = reversed.order(lambda x: x).all()
+        self.assertEqual(
+            reversed,
+            [1, 4, 5]
+        )
+
+    def test_unique(self):
+        seed = self.graph.vertex()
+        seed.link(self.graph.vertex(value=1))
+        seed.link(self.graph.vertex(value=1))
+        seed.link(self.graph.vertex(value=1))
+        unified = seed.outgoings().end().property('value').unique().all()
+        self.assertEqual(
+            unified,
+            [1]
+        )

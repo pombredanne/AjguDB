@@ -150,11 +150,9 @@ class Base(dict):
     def delete(self):
         self._graphdb._tuples.delete(self.uid)
 
-    def __is__(self, other):
-        if type(other) is Base:
+    def __eq__(self, other):
+        if isinstance(other, Base):
             return self.uid == other.uid
-        if other is True:
-            return True
         return False
 
     def __repr__(self):
@@ -249,19 +247,12 @@ class GremlinIterator(object):
     def __iter__(self):
         return self.iterator
 
-    def _not_none(self):
-        def __iter():
-            for item in self.iterator:
-                if item:
-                    yield item
-        return __iter()
-
     def all(self):
-        return list(self._not_none())
+        return list(self)
 
     def one(self, default=sentinel):
         try:
-            return next(self._not_none())
+            return next(self.iterator)
         except StopIteration:
             if default is self.sentinel:
                 msg = 'not found. Query: %s' % self.query
@@ -270,70 +261,58 @@ class GremlinIterator(object):
                 return default
 
     def skip(self, count):
-        def iter_():
+        def iterator():
             counter = 0
-            for item in self._not_none():
+            for item in self:
                 counter += 1
-                if counter >= count:
+                if counter > count:
                     yield item
-        return type(self)(iter_())
+        return type(self)(iterator())
 
     def limit(self, count):
-        def iter_():
+        def iterator():
             counter = 0
-            for item in self._not_none():
+            for item in self:
                 counter += 1
                 yield item
                 if counter == count:
                     break
-        return type(self)(iter_())
+        return type(self)(iterator())
 
     def paginator(self, count):
-        def iter_():
-            while True:
-                counter = 0
-                page = list()
-                for item in self._not_none():
-                    page.append(item)
-                    counter += 1
-                    if counter == count:
-                        yield page
-                        counter = 0
-                        page = list()
-        return type(self)(iter_())
+        def iterator():
+            counter = 0
+            page = list()
+            for item in self:
+                page.append(item)
+                counter += 1
+                if counter == count:
+                    yield page
+                    counter = 0
+                    page = list()
+            yield page
+        return type(self)(iterator())
 
     def count(self):
-        return reduce(lambda x, y: x+1, self._not_none(), 0)
+        return reduce(lambda x, y: x+1, self, 0)
 
-    def incomings(self, proc, **filters):
-        def __iter():
-            for item in self._not_none():
+    def incomings(self, proc=None, **filters):
+        def iterator():
+            for item in self:
                 for edge in item.incomings():
                     yield edge
-        out = type(self)(__iter())
+        out = type(self)(iterator())
         if proc or filters:
             return out.filter(proc, **filters)
         else:
             return out
 
     def outgoings(self, proc=None, **filters):
-        def __iter():
-            for item in self._not_none():
+        def iterator():
+            for item in self:
                 for edge in item.outgoings():
                     yield edge
-        out = type(self)(__iter())
-        if filters or proc:
-            return out.filter(proc, **filters)
-        else:
-            return out
-
-    def both(self, proc=None, **filters):
-        def __iter():
-            for item in self.outgoings():
-                yield item
-            for item in self.incomings():
-                yield item
-        out = type(self)(__iter())
+        out = type(self)(iterator())
         if filters or proc:
             return out.filter(proc, **filters)
         else:
@@ -345,19 +324,11 @@ class GremlinIterator(object):
     def end(self):
         return self.map(lambda x: x.end())
 
-    def cap(self):
-        raise NotImplementedError()
-
-    def gather(self, proc):
-        def iter_():
-            return proc(self.all())
-        return type(self)(iter_())
-
     def map(self, proc):
-        def iter_():
-            for item in self._not_none():
+        def iterator():
+            for item in self:
                 yield proc(item)
-        return type(self)(iter_())
+        return type(self)(iterator())
 
     def dict(self, **kwargs):
         if kwargs:
@@ -374,12 +345,12 @@ class GremlinIterator(object):
         return self.map(lambda x: x.uid)
 
     def order(self, key=lambda x: x, reverse=False):
-        __iter = sorted(
-            self._not_none(),
-            key=lambda x: x[key],
+        out = sorted(
+            self,
+            key=key,
             reverse=reverse
         )
-        return type(self)(__iter)
+        return type(self)(iter(out))
 
     def property(self, name):
         return self.map(lambda x: x.get(name))
@@ -408,26 +379,26 @@ class GremlinIterator(object):
                     seen.add(keyitem)
                     yield item
 
-        __iter = __unique(self._not_none())
-        return type(self)(__iter, unique=True, **self.query)
+        iterator = __unique(self)
+        return type(self)(iterator)
 
     def filter(self, func=None, **properties):
         if func:
-            def __iter():
-                for item in self._not_none():
+            def iterator():
+                for item in self:
                     if func(item):
                         yield item
             if properties:
-                return type(self)(__iter()).filter(**properties)
+                return type(self)(iterator()).filter(**properties)
             else:
-                return type(self)(__iter())
+                return type(self)(iterator())
         else:
-            def __iter():
+            def iterator():
                 filters = set(properties.items())
-                for item in self._not_none():
+                for item in self:
                     if filters.issubset(item.items()):
                         yield item
-            return type(self)(__iter())
+            return type(self)(iterator())
 
 
 class AjguDB(object):
@@ -473,12 +444,9 @@ class AjguDB(object):
             return self.vertex(**properties)
 
     def filter(self, **properties):
-        def __iter():
-            items = set(properties.items())
+        def iterator():
             key, value = properties.items()[0]
             for _, _, uid in self._tuples.query(key, value):
-                element = self.get(uid)
-                if items.issubset(element.items()):
-                    yield element
+                yield self.get(uid)
 
-        return GremlinIterator(__iter())
+        return GremlinIterator(iterator()).filter(**properties)

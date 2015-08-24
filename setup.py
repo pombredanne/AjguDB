@@ -9,13 +9,13 @@ def read(fname):
 
 setup(
     name='AjguDB',
-    version='0.1',
+    version='0.1.1',
     author='Amirouche Boubekki',
     author_email='amirouche@hypermove.net',
     url='https://github.com/amirouche/ajgudb',
     description='Graph Database for everyday',
     long_description=read('README.md'),
-    py_modules='ajgudb',
+    py_modules=['ajgudb'],
     zip_safe=False,
     license='LGPLv2.1 or later',
     install_requires=[

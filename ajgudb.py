@@ -15,7 +15,6 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
-import os
 import struct
 
 from plyvel import DB
@@ -66,7 +65,7 @@ class TupleSpace(object):
 
     def __init__(self, path):
         self.db = DB(
-            os.path.join(path, 'tuples'),
+            path,
             create_if_missing=True,
             lru_cache_size=10*9,
             bloom_filter_bits=64,
@@ -275,6 +274,20 @@ class GremlinIterator(object):
                 yield item
                 if counter == count:
                     break
+        return type(self)(iter_())
+
+    def paginator(self, count):
+        def iter_():
+            while True:
+                counter = 0
+                page = list()
+                for item in self._not_none():
+                    page.append(item)
+                    counter += 1
+                    if counter == count:
+                        yield page
+                        counter = 0
+                        page = list()
         return type(self)(iter_())
 
     def count(self):

@@ -32,7 +32,7 @@ def pack(*values):
         if type(value) is int:
             return '1' + struct.pack('>q', value)
         elif type(value) is str:
-            return '2' + value + '\0'
+            return '2' + value.encode('utf-8') + '\0'
         else:
             data = dumps(value, encoding='utf-8')
             return '3' + struct.pack('>q', len(data)) + data
@@ -46,11 +46,11 @@ def unpack(packed):
         packed = packed[9:]
     elif kind == '2':
         index = packed.index('\0')
-        value = packed[1:index]
+        value = packed[1:index].decode('utf-8')
         packed = packed[index+1:]
     else:
         size = struct.unpack('>q', packed[1:9])[0]
-        value = loads(packed[9:9+size])
+        value = loads(packed[9:9+size], encoding='utf-8')
         packed = packed[size+9:]
     if packed:
         values = unpack(packed)
@@ -230,9 +230,8 @@ class GremlinIterator(object):
 
     sentinel = object()
 
-    def __init__(self, iterator, **query):
+    def __init__(self, iterator):
         self.iterator = iterator
-        self.query = query
 
     def __iter__(self):
         return self.iterator
@@ -429,13 +428,13 @@ class AjguDB(object):
     def _uid(self):
         try:
             counter = self._tuples.get(0)['counter']
-        except:
+        except AjguDBException: 
             self._tuples.add(0, counter=1)
             counter = 1
+            return counter
         else:
             counter += 1
             self._tuples.update(0, counter=counter)
-        finally:
             return counter
 
     def get(self, uid):
@@ -463,7 +462,7 @@ class AjguDB(object):
 
     def filter(self, **properties):
         def __iter():
-            items = set(list(properties.items()))
+            items = set(properties.items())
             key, value = properties.items()[0]
             for _, _, uid in self._tuples.query(key, value):
                 element = self.get(uid)

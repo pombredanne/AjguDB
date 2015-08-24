@@ -450,3 +450,9 @@ class AjguDB(object):
                 yield self.get(uid)
 
         return GremlinIterator(iterator()).filter(**properties)
+
+    def vertices(self):
+        return self.filter(_meta_type='vertex')
+
+    def edges(self):
+        return self.filter(_meta_type='edge')

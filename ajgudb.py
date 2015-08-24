@@ -428,10 +428,9 @@ class AjguDB(object):
     def _uid(self):
         try:
             counter = self._tuples.get(0)['counter']
-        except AjguDBException: 
+        except KeyError: 
             self._tuples.add(0, counter=1)
-            counter = 1
-            return counter
+            return 1
         else:
             counter += 1
             self._tuples.update(0, counter=counter)

@@ -258,6 +258,25 @@ class GremlinIterator(object):
             else:
                 return default
 
+    def skip(self, count):
+        def iter_():
+            counter = 0
+            for item in self._not_none():
+                counter += 1
+                if counter >= count:
+                    yield item
+        return type(self)(iter_())
+
+    def limit(self, count):
+        def iter_():
+            counter = 0
+            for item in self._not_none():
+                counter += 1
+                yield item
+                if counter == count:
+                    break
+        return type(self)(iter_())
+
     def count(self):
         return reduce(lambda x, y: x+1, self._not_none(), 0)
 

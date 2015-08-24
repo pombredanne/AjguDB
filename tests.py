@@ -183,15 +183,15 @@ class TestGraphDatabase(DatabaseTestCase):
         self.assertEquals(len(list(end.incomings())), 0)
 
 
-class TestGraphFiltering(DatabaseTestCase):
+class TestGremlin(DatabaseTestCase):
 
-    def test_simple_filter(self):
+    def test_direct_filter(self):
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='another', foo='bar')
         self.assertEqual(self.graph.filter(label='test').count(), 2)
 
-    def test_two_filters(self):
+    def test_direct_filters_two_properties(self):
         self.graph.vertex(label='test', value=1, foo='bar')
         self.graph.vertex(label='test', value=2, foo='bar')
         self.graph.vertex(label='another', value=3, foo='bar')

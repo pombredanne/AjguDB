@@ -1,5 +1,14 @@
 # Building a python graphdb in one night
 
+- graphdb
+- schemaless
+- single thread
+- transaction-less
+- LGPLv2.1 or later
+
+
+## Introduction
+
 *This is a new version of [ajgu](https://pypi.python.org/pypi/ajgu)*.
 
 You maybe already know that I am crazy about graph databases. I am experimenting
@@ -14,21 +23,17 @@ pattern. I call it the `TupleSpace`.
 
 One has to know that there is much much less code in this graphdb
 implementation *but* that edges and vertices share the same table and the
-same index. It can be improved by using:
-
-- one table for edge documents
-- one table for edges links
-- one table for vertex documents
-
-Moving to this schema will be easier, but  I don't need it yet.
+same index. 
   
 The main advantage of the new schema is that it's simple to implement,
-understand and has a low sloc count.
+understand and has a low sloc count. As an extra simplification I use
+[plyvel python leveldb bindings](https://plyvel.readthedocs.org/en/latest/)
+which provides a very nice API.
 
 ## What is the Tuple Space
 
-The idea behind tuple space is to store a set of tuples inside a single table
-that look like the following:
+The idea behind tuple space is to store a set of tuples inside a single
+table that look like the following:
 
 
 ```
@@ -58,7 +63,7 @@ If you study the above example you will discover that both edges (aka.
 Representing `ForeignKey` is possible but is left as an exercice to
 the reader ;)
 
-## Implementation of a Tuple Space
+## Implementation of a `TupleSpace`
 
 To implement the above schema inside a *ordered key/value* store we have
 to find a relevant key. That key I think, is the composition of the `identifier`
@@ -101,7 +106,25 @@ Colunms  | identifier |  name       |                 value
 
 ```
 
-### Key composition
+## Indexing
+
+Every tuple is indexed, whatever the tuple. This can be improved, but it's
+the simplest.
+
+To index a tuple, we use a permutation of the tuple to make easy using
+plyvel range queries ie. `DB.iterator()` to retrieve a given tuple knowing
+its `name` or `name` and `value`. The key schema of the index is the following:
+
+
+```
+Key(name, value, identifier) ->
+```
+
+The value is not used. It could be used to store all the document associated
+with `identifier`.
+
+
+## Key composition
 
 To keep the database ordered you need to pack correctly the components of
 the key. You can not simply convert string to bytes, how will you distinguish
@@ -119,7 +142,7 @@ Here is a naive packing function that support every Python objects, keeps
 the ordering of strings and positive integers where integers comes before
 strings which come before other kind of Python values.
 
-```
+```python
 def pack(*values):
     def __pack(value):
         if type(value) is int:
@@ -132,3 +155,186 @@ def pack(*values):
     return ''.join(map(__pack, values))
 
 ```
+
+## `TupleSpace` API
+
+
+The tuples schema provide a `Document` objects represented as simple dict.
+So eventually `TupleSpace` API looks like:
+
+```python
+def add(uid, **document):
+    pass
+
+def update(uid, **document):
+    pass
+
+def delete(uid):
+    pass
+```
+    
+Given a document
+    
+```python
+post = dict(
+    title="Building a python graphdb in one night",
+    body="You maybe already know that I am...",
+    publishedat="2015-08-23",
+)```
+
+And an identifier you can add that document to the tuple space.
+The identifier can come from the outside or like the graphdb does
+can be a counter that is stores as document `0` inside the `TupleSpace`.
+
+
+## GraphDB
+
+At this point,  the `TupleSpace` provides documents and a bit relational
+paradigm as you can work with references. `AjguDB` provides a layer on top
+of `TupleSpace` to easily work with graph database.
+
+### Data model
+
+The first aspect is building the graph data model:
+
+- `Vertex` are simple `TupleSpace` documents which their identifier comes from
+  document `0` counter which is incremented everytime a new vertex or edge
+  is created. Moreover is stores in as `_meta_type` name (document attribute)
+  that the document represent a `Vertex`
+
+- `Edge` are also simple `TupleSpace` documents with their identifier like for
+  `Vertex` comes from the *same* document `0`. Same as `Vertex`, `Edge` document
+  store as `_meta_type` the fact that they are edge. Moreover `start` and `end`
+  attributes are also stores in the `TupleSpace` document.
+
+Given the fact that every tuples are indexed, it's easy to retrieve
+all *incomings* and *outgoings* edges of a given `Vertex` so it's not required
+to cache them in the `Vertex` document (as it is done in
+[ajgu](https://pypi.python.org/pypi/ajgu)).
+
+### Better schema
+
+Even if this requires benchmarking, an idea to improve performance one
+`TupleSpace` object for:
+
+- edge documents
+- edge links
+- vertex documents
+
+Or better use a specific schema *edge links*.
+
+### API
+
+I changed some what the API compared to `ajgu`. The in particular
+
+- `label` is not required but recommended
+- queries happens on both `Vertex` and `Edge` space so make sure
+  to namespace them somehow. Or use the `_meta_type` as filter.
+
+#### `AjguDB`
+
+`from ajgudb import AjguDB`
+
+##### `AjguDB(path)`
+
+Create a database at `path`
+
+##### `AjguDB.close()`
+
+close the database
+
+##### `AjguDB.get(uid)`
+
+Retrieve `Vertex` or `Edge` with `uid` as identifier.
+
+##### `AjguDB.vertex(**properties)`
+
+Create a new vertes with `properties` as initial properties.
+
+##### `AjguDB.get_or_create(**properties)`
+
+Get or create `Vertex` with the provided `properties`.
+
+##### `AjguDB.filter(**properties)`
+
+Retrieve an generator a `GremlinIterator` over the `Edge` and/or `Vertex` with
+the `properties` as properties.
+
+#### `Vertex`
+
+`Vertex` inherit the dictionary, so you can use `dict` method to access
+a `Vertex` properties.
+
+##### `Vertex.uid`
+
+Return the `Vertex` unique identifier.
+
+##### `Vertex.incomings(proc=None, **properties)`
+
+Retrieve incoming edges filtered with proc and/or properties.
+
+##### `Vertex.outgoings(proc=None, **properties)`
+
+Retrieve outgoing edges filtered with proc and/or properties.
+
+##### `Vertex.save()`
+
+If the `Vertex` is mutated after creation you must save it.
+
+##### `Vertex.delete()`
+
+Delete the `Vertex` object.
+
+##### `Vertex.link(other, **properties)`
+
+Create an `Edge` from the current `Vertex` to `other` with `properties`.
+
+#### `Edge`
+
+`Edge` inherit the dictionary, so you can use `dict` method to access
+an `Edge` properties.
+
+##### `Edge.start()'`
+
+Return the `Edge` starting `Vertex`.
+
+##### `Edge.end()`
+
+Return the `Edge` ending `Vertex`.
+
+##### `Edge.save()`
+
+If the `Edge` is mutated after creation you must save it.
+
+##### `Edge.delete()`
+
+Delete the `Edge` object.
+
+
+#### `GremlinIterator`
+
+This where the magic happens. You can chain methods on the iterator to
+realise the query you need. 
+
+This is similar to tinkerpop's [Gremlin](http://gremlindocs.spmallette.documentup.com)
+except the implementation is incomplete and can be faster.
+
+Here are the provided operators:
+
+- all
+- one
+- count
+- incomings
+- outgoings
+- both
+- start
+- end
+- gather
+- map
+- dict
+- uid
+- order
+- property
+- unique
+- filter
+

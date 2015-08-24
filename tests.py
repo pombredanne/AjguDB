@@ -196,3 +196,10 @@ class TestGremlin(DatabaseTestCase):
         self.graph.vertex(label='test', value=2, foo='bar')
         self.graph.vertex(label='another', value=3, foo='bar')
         self.assertEqual(self.graph.filter(label='test', value=1).count(), 1)
+
+    def test_indirect_filter(self):
+        seed = self.graph.vertex(label='seed')
+        seed.link(self.graph.vertex(label='one'))
+        seed.link(self.graph.vertex(label='two'))
+        seed.link(self.graph.vertex(label='one'))
+        self.assertEqual(seed.outgoings().end().filter(label='one').count(), 2)

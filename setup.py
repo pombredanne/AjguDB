@@ -17,9 +17,9 @@ setup(
     long_description=read('README.rst'),
     py_modules='ajgudb',
     zip_safe=False,
-    license='GPLv2 or GPLv3',
+    license='LGPLv2.1 or later',
     install_requires=[
-        'wiredtiger_ffi',
+        'plyvel',
         'msgpack-python',
     ],
     classifiers=[

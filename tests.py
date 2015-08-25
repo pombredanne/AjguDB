@@ -220,7 +220,7 @@ class TestGremlin(DatabaseTestCase):
         seed.link(self.graph.vertex(label='one'))
         seed.link(self.graph.vertex(label='two'))
         seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(len(seed.outgoings().all()), 3)
+        self.assertEqual(len(seed.outgoings().get()), 3)
 
     def test_one(self):
         seed = self.graph.vertex(label='seed')
@@ -233,7 +233,7 @@ class TestGremlin(DatabaseTestCase):
 
     def test_empty_traversal(self):
         seed = self.graph.vertex(label='seed')
-        self.assertEqual(seed.outgoings().end().outgoings().all(), [])
+        self.assertEqual(seed.outgoings().end().outgoings().get(), [])
 
     def test_skip(self):
         seed = self.graph.vertex(label='seed')
@@ -253,7 +253,7 @@ class TestGremlin(DatabaseTestCase):
         seed = self.graph.vertex(label='seed')
         list(map(lambda x: seed.link(self.graph.vertex()), range(20)))
         self.assertEqual(seed.outgoings().paginator(5).count(), 5)
-        self.assertEqual(len(seed.outgoings().paginator(5).one()), 5)
+        self.assertEqual(seed.outgoings().paginator(5).count(), 5)
 
     def test_outgoings(self):
         seed = self.graph.vertex()
@@ -266,11 +266,23 @@ class TestGremlin(DatabaseTestCase):
     def test_incomings(self):
         seed = self.graph.vertex()
         other = self.graph.vertex()
+        link = seed.link(other)
+        self.assertEqual(other.incomings().one(), link)
+
+    def test_incomings_two(self):
+        seed = self.graph.vertex()
+        other = self.graph.vertex()
+        seed.link(other)
+        self.assertEqual(other.incomings().start().one(), seed)
+
+    def test_incomings_three(self):
+        seed = self.graph.vertex()
+        other = self.graph.vertex()
         seed.link(other)
         end = self.graph.vertex()
         other.link(end)
-
-        self.assertEqual(end.incomings().start().incomings().count(), 1)
+        query = end.incomings().start().incomings().start().one()
+        self.assertEqual(query, seed)
 
     def test_order(self):
         seed = self.graph.vertex()

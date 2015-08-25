@@ -104,34 +104,41 @@ Delete the ``Edge`` object.
 ``GremlinIterator``
 -----------------
 
-This where the magic happens. You can chain methods on the iterator to
-realise the query you need. 
+This where the magic happens. You can query the graph by composing steps.
 
 This is similar to tinkerpop's `Gremlin <http://gremlindocs.spmallette.documentup.com>`_
 except the implementation is incomplete.
 
-Here are the provided operators:
+Here are the provided steps:
 
-- ``GremlinIterator.all()``: retrieve all the results. Most likely returns uids.
-- ``GremlinIterator.one()``: retrieve the first result and fetch it. Returns a vertex or an edge.
-- ``GremlinIterator.get()``: retrieve all result and fetch them. Returns vertex and edge.
-- ``GremlinIterator.count()``: count the number of items in the iterator.
-- ``GremlinIterator.incomings()``: get incomings edges.
-- ``GremlinIterator.outgoings()``: get outgoings edges.
-- ``GremlinIterator.both()``: get both incomings and outgoings edges.
-- ``GremlinIterator.start()``: get start vertex.
-- ``GremlinIterator.end()``: get end vertex.
-- ``GremlinIterator.dict()``: get the ``dict`` of the value.
-- ``GremlinIterator.order(key=lambda x: x, reverse=False)``: order the iterator.
-- ``GremlinIterator.property()`` Get the value of property ``name``.
-- ``GremlinIterator.unique()`` return an iterator with unique values.
-- ``GremlinIterator.select(**kwargs)`` return values matching ``kwargs``.
-- ``GremlinIterator.filter(predicate)`` return values satisfying ``predicate``.
+- ``count``: count the number of items in the iterator.
+- ``incomings``: get incomings edges.
+- ``outgoings``: get outgoings edges.
+- ``both``: get both incomings and outgoings edges.
+- ``start``: get start vertex.
+- ``end``: get end vertex.
+- ``dict``: get the ``dict`` of the value.
+- ``order(key=lambda x: x, reverse=False)``: order the iterator.
+- ``key(name)`` Get the value of ``name`` key.
+- ``unique`` return an iterator with unique values.
+- ``select(**kwargs)`` return values matching ``kwargs``.
+- ``filter(predicate)`` return values satisfying ``predicate``.
   ``predicate`` takes ``AjguDB`` and ``GremlinResult`` as arugments
-- ``GremlinIterator.map(proc)``: apply proc to very value in the iterator.
+- ``map(proc)``: apply proc to very value in the iterator.
   ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments.
-- ``GremlinIterator.average()`` compute the average value.
+- ``average`` compute the average value.
 
+For instance you can do:
+
+.. code::
+
+   query = select(label='movie') | incomings | filter(label='rating') | key('value') | sort(lambda x.value) | limit 10 | back | end | value('title')
+   print(query(graphdb).all())
+
+This will select the 10 poor film on movielens. If you want to only see the
+pooreset the movie you use ``one()`` instead of ``all``.
+
+   
 Author
 ======
 

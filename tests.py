@@ -298,3 +298,13 @@ class TestGremlin(DatabaseTestCase):
             unified,
             [1]
         )
+
+    def test_dict(self):
+        seed = self.graph.vertex()
+        other = self.graph.vertex(value=1)
+        seed.link(other)
+        query = seed.outgoings().end().dict().all()
+        self.assertEqual(
+            query,
+            [dict(value=1)]
+        )

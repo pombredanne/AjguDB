@@ -14,94 +14,94 @@ exploration.
 API Reference
 =============
 
-`from ajgudb import AjguDB`
+``from ajgudb import AjguDB``
 
-`AjguDB(path)`
+``AjguDB(path)``
 --------------
 
-Create a database at `path`
+Create a database at ``path``
 
-`AjguDB.close()`
+``AjguDB.close()``
 ~~~~~~~~~~~~~~~~
 
 close the database
 
-`AjguDB.get(uid)`
+``AjguDB.get(uid)``
 ~~~~~~~~~~~~~~~~~
 
-Retrieve `Vertex` or `Edge` with `uid` as identifier.
+Retrieve ``Vertex`` or ``Edge`` with ``uid`` as identifier.
 
-`AjguDB.vertex(**properties)`
+``AjguDB.vertex(**properties)``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create a new vertes with `properties` as initial properties.
+Create a new vertes with ``properties`` as initial properties.
 
-`AjguDB.get_or_create(**properties)`
+``AjguDB.get_or_create(**properties)``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Get or create `Vertex` with the provided `properties`.
+Get or create ``Vertex`` with the provided ``properties``.
 
-`AjguDB.select(**properties)`
+``AjguDB.select(**properties)``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Retrieve an generator a `GremlinIterator` over the `Edge` and/or `Vertex` with
-the `properties` as properties.
+Retrieve an generator a ``GremlinIterator`` over the ``Edge`` and/or ``Vertex`` with
+the ``properties`` as properties.
 
-`Vertex`
+``Vertex``
 --------
 
-`Vertex` inherit the dictionary, so you can use `dict` method to access
-a `Vertex` properties.
+``Vertex`` inherit the dictionary, so you can use ``dict`` method to access
+a ``Vertex`` properties.
 
-`Vertex.uid`
+``Vertex.uid``
 ~~~~~~~~~~~~
-Return the `Vertex` unique identifier.
+Return the ``Vertex`` unique identifier.
 
-`Vertex.incomings()`
+``Vertex.incomings()``
 ~~~~~~~~~~~~~~~~~~~~
 Retrieve incoming edges filtered with proc and/or properties.
 
-`Vertex.outgoings()`
+``Vertex.outgoings()``
 ~~~~~~~~~~~~~~~~~~~~
 Retrieve outgoing edges filtered with proc and/or properties.
 
-`Vertex.save()`
+``Vertex.save()``
 ~~~~~~~~~~~~~~~
-If the `Vertex` is mutated after creation you must save it.
+If the ``Vertex`` is mutated after creation you must save it.
 
-`Vertex.delete()`
+``Vertex.delete()``
 ~~~~~~~~~~~~~~~~~
-Delete the `Vertex` object.
+Delete the ``Vertex`` object.
 
-`Vertex.link(other, **properties)`
+``Vertex.link(other, **properties)``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Create an `Edge` from the current `Vertex` to `other` with `properties`.
+Create an ``Edge`` from the current ``Vertex`` to ``other`` with ``properties``.
 
 
-`Edge`
+``Edge``
 ------
 
-`Edge` inherit the dictionary, so you can use `dict` method to access
-an `Edge` properties.
+``Edge`` inherit the dictionary, so you can use ``dict`` method to access
+an ``Edge`` properties.
 
-`Edge.start()'`
+``Edge.start()'``
 ~~~~~~~~~~~~~~~
-Return the `Edge` starting `Vertex`.
+Return the ``Edge`` starting ``Vertex``.
 
-`Edge.end()`
+``Edge.end()``
 ~~~~~~~~~~~~
-Return the `Edge` ending `Vertex`.
+Return the ``Edge`` ending ``Vertex``.
 
-`Edge.save()`
+``Edge.save()``
 ~~~~~~~~~~~~~
-If the `Edge` is mutated after creation you must save it.
+If the ``Edge`` is mutated after creation you must save it.
 
-`Edge.delete()`
+``Edge.delete()``
 ~~~~~~~~~~~~~~~
-Delete the `Edge` object.
+Delete the ``Edge`` object.
 
 
-`GremlinIterator`
+``GremlinIterator``
 -----------------
 
 This where the magic happens. You can chain methods on the iterator to
@@ -112,24 +112,24 @@ except the implementation is incomplete.
 
 Here are the provided operators:
 
-- `GremlinIterator.all()`: retrieve all the results. Most likely returns uids.
-- `GremlinIterator.one()`: retrieve the first result and fetch it. Returns a vertex or an edge.
-- `GremlinIterator.get()`: retrieve all result and fetch them. Returns vertex and edge.
-- `GremlinIterator.count()`: count the number of items in the iterator.
-- `GremlinIterator.incomings()`: get incomings edges 
-- `GremlinIterator.outgoings()`: get outgoings edges
-- `GremlinIterator.both()`: get both incomings and outgoings edges
-- `GremlinIterator.start()`: get start vertex
-- `GremlinIterator.end()`: get end vertex
-- `GremlinIterator.map(proc)`: apply proc to very value in the iterator.
-  `proc` takes the `AjguDB` and `GremlinResult` as arugments
-- `GremlinIterator.dict()`: get the `dict` of the value
-- `GremlinIterator.order(key=lambda x: x, reverse=False)`: order the iterator
-- `GremlinIterator.property()` Get the value of property `name` 
-- `GremlinIterator.unique()` return an iterator with unique values
-- `GremlinIterator.select(**kwargs)` return values matching `kwargs`
-- `GremlinIterator.filter(predicate)` return values satisfying `predicate`.
-  `predicate` takes `AjguDB` and `GremlinResult` as arugments
+- ``GremlinIterator.all()``: retrieve all the results. Most likely returns uids.
+- ``GremlinIterator.one()``: retrieve the first result and fetch it. Returns a vertex or an edge.
+- ``GremlinIterator.get()``: retrieve all result and fetch them. Returns vertex and edge.
+- ``GremlinIterator.count()``: count the number of items in the iterator.
+- ``GremlinIterator.incomings()``: get incomings edges 
+- ``GremlinIterator.outgoings()``: get outgoings edges
+- ``GremlinIterator.both()``: get both incomings and outgoings edges
+- ``GremlinIterator.start()``: get start vertex
+- ``GremlinIterator.end()``: get end vertex
+- ``GremlinIterator.map(proc)``: apply proc to very value in the iterator.
+  ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments
+- ``GremlinIterator.dict()``: get the ``dict`` of the value
+- ``GremlinIterator.order(key=lambda x: x, reverse=False)``: order the iterator
+- ``GremlinIterator.property()`` Get the value of property ``name`` 
+- ``GremlinIterator.unique()`` return an iterator with unique values
+- ``GremlinIterator.select(**kwargs)`` return values matching ``kwargs``
+- ``GremlinIterator.filter(predicate)`` return values satisfying ``predicate``.
+  ``predicate`` takes ``AjguDB`` and ``GremlinResult`` as arugments
 
 
 Author

@@ -151,6 +151,13 @@ class AjguDB(object):
         else:
             return self.vertex(**properties)
 
+    def query(self, *steps):
+        def composed(iterator):
+            for step in steps:
+                iterator = step(self, iterator)
+            return iterator
+        return composed
+
     def select(self, **properties):
         def iterator():
             key, value = properties.items()[0]

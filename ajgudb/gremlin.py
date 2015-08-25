@@ -42,6 +42,7 @@ def limit(count):
             yield item
             if counter == count:
                 break
+    return step
 
 
 def paginator(count):
@@ -63,50 +64,52 @@ def count(graphdb, iterator):
     return reduce(lambda x, y: x + 1, iterator, 0)
 
 
-def _edges(vertex):
-    def step(graphdb, iterator):
-        key = '_meta_%s' % vertex
-        for item in iterator:
-            records = graphdb._tuples.query(key, item.value)
-            for _, _, uid in records:
-                return GremlinResult(uid, item, None)
-    return step
+def _edges(vertex, graphdb, iterator):
+    key = '_meta_%s' % vertex
+    for item in iterator:
+        records = graphdb._tuples.query(key, item.value)
+        for _, _, uid in records:
+            yield GremlinResult(uid, item, None)
 
 
-def incomings(self):
-    return self._edges('end')
+def incomings(graphdb, iterator):
+    return _edges('end', graphdb, iterator)
 
 
-def outgoings(self):
-    return self._edges('start')
+def outgoings(graphdb, iterator):
+    return _edges('start', graphdb, iterator)
 
 
-def start(self):
-    for item in self.iterator:
-        uid = self.graphdb._tuples.ref(item.value, '_meta_start')
+def start(graphdb, iterator):
+    for item in iterator:
+        uid = graphdb._tuples.ref(item.value, '_meta_start')
         result = GremlinResult(uid, item, None)
         yield result
 
 
-def end(self):
-    for item in self.iterator:
-        uid = self.graphdb._tuples.ref(item.value, '_meta_end')
+def end(graphdb, iterator):
+    for item in iterator:
+        uid = graphdb._tuples.ref(item.value, '_meta_end')
         result = GremlinResult(uid, item, None)
         yield result
 
 
-def map(proc):
+def each(proc):
     def step(graphdb, iterator):
         return map(lambda x: proc(graphdb, x), iterator)
 
 
-def dict(graphdb, iterator):
-    return map(lambda x: dict(graphdb.get(x.value)))
+def value(graphdb, iterator):
+    return map(lambda x: x.value, iterator)
+
+
+def get(graphdb, iterator):
+    return list(map(lambda x: graphdb.get(x.value), iterator))
 
 
 def sort(key=lambda g, x: x, reverse=False):
     def step(graphdb, iterator):
-        out = sorted(iterator, key=key, reverse=reverse)
+        out = sorted(iterator, key=lambda x: key(graphdb, x), reverse=reverse)
         return iter(out)
     return step
 
@@ -162,11 +165,12 @@ def select(**kwargs):
             ok = True
             for key, value in kwargs.items():
                 other = graphdb._tuples.ref(item.value, key)
-                if other == value:
+                if other != value:
                     ok = False
                     break
-        if ok:
-            yield item
+            if ok:
+                yield item
+
     return step
 
 

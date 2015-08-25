@@ -116,26 +116,23 @@ Here are the provided operators:
 - ``GremlinIterator.one()``: retrieve the first result and fetch it. Returns a vertex or an edge.
 - ``GremlinIterator.get()``: retrieve all result and fetch them. Returns vertex and edge.
 - ``GremlinIterator.count()``: count the number of items in the iterator.
-- ``GremlinIterator.incomings()``: get incomings edges 
-- ``GremlinIterator.outgoings()``: get outgoings edges
-- ``GremlinIterator.both()``: get both incomings and outgoings edges
-- ``GremlinIterator.start()``: get start vertex
-- ``GremlinIterator.end()``: get end vertex
-- ``GremlinIterator.map(proc)``: apply proc to very value in the iterator.
-  ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments
-- ``GremlinIterator.dict()``: get the ``dict`` of the value
-- ``GremlinIterator.order(key=lambda x: x, reverse=False)``: order the iterator
-- ``GremlinIterator.property()`` Get the value of property ``name`` 
-- ``GremlinIterator.unique()`` return an iterator with unique values
-- ``GremlinIterator.select(**kwargs)`` return values matching ``kwargs``
+- ``GremlinIterator.incomings()``: get incomings edges.
+- ``GremlinIterator.outgoings()``: get outgoings edges.
+- ``GremlinIterator.both()``: get both incomings and outgoings edges.
+- ``GremlinIterator.start()``: get start vertex.
+- ``GremlinIterator.end()``: get end vertex.
+- ``GremlinIterator.dict()``: get the ``dict`` of the value.
+- ``GremlinIterator.order(key=lambda x: x, reverse=False)``: order the iterator.
+- ``GremlinIterator.property()`` Get the value of property ``name``.
+- ``GremlinIterator.unique()`` return an iterator with unique values.
+- ``GremlinIterator.select(**kwargs)`` return values matching ``kwargs``.
 - ``GremlinIterator.filter(predicate)`` return values satisfying ``predicate``.
   ``predicate`` takes ``AjguDB`` and ``GremlinResult`` as arugments
-
+- ``GremlinIterator.map(proc)``: apply proc to very value in the iterator.
+  ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments.
+- ``GremlinIterator.average()`` compute the average value.
 
 Author
 ======
 
 `Say hi! <amirouche@hypermove.net>`_
-
-
-

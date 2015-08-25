@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
 import struct
+from collections import namedtuple
 
 from plyvel import DB
 
@@ -81,6 +82,16 @@ class TupleSpace(object):
 
     def close(self):
         self.db.close()
+
+    def ref(self, uid, key):
+        match = [uid, key]
+        for key, value in self.tuples.iterator(start=pack(uid, key)):
+            other = unpack(key)
+            if other == match:
+                value = unpack(value)[0]
+                return value
+            else:
+                return None
 
     def get(self, uid):
         def __get():
@@ -173,16 +184,13 @@ class Vertex(Base):
         def edges():
             key = '_meta_%s' % _vertex
             records = self._graphdb._tuples.query(key, self.uid)
-            for key, name, uid in records:
-                properties = self._graphdb._tuples.get(uid)
-                properties.pop('_meta_type')
-                edge = Edge(self._graphdb, uid, properties)
-                yield edge
+            for _, _, uid in records:
+                yield GremlinResult(uid, None, None)
 
         if proc or properties:
-            return GremlinIterator(edges()).filter(proc, **properties)
+            return GremlinIterator(self._graphdb, edges()).filter(proc, **properties)
         else:
-            return GremlinIterator(edges())
+            return GremlinIterator(self._graphdb, edges())
 
     def incomings(self, proc=None, **properties):
         return self._iter_edges('end', proc, **properties)
@@ -237,28 +245,36 @@ class Edge(Base):
         self._graphdb._tuples.delete(self.uid)
 
 
+GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
+
+
 class GremlinIterator(object):
 
     sentinel = object()
 
-    def __init__(self, iterator):
+    def __init__(self, graphdb, iterator):
         self.iterator = iterator
+        self.graphdb = graphdb
 
     def __iter__(self):
         return self.iterator
 
     def all(self):
-        return list(self)
+        return list(map(lambda x: x.value, self.iterator))
+
+    def get(self):
+        return list(map(lambda x: self.graphdb.get(x.value), self.iterator))
 
     def one(self, default=sentinel):
         try:
-            return next(self.iterator)
+            uid = next(self.iterator).value
         except StopIteration:
             if default is self.sentinel:
-                msg = 'not found.'
-                raise AjguDBException(msg)
+                raise AjguDBException()
             else:
                 return default
+        else:
+            return self.graphdb.get(uid)
 
     def skip(self, count):
         def iterator():
@@ -267,7 +283,7 @@ class GremlinIterator(object):
                 counter += 1
                 if counter > count:
                     yield item
-        return type(self)(iterator())
+        return type(self)(self.graphdb, iterator())
 
     def limit(self, count):
         def iterator():
@@ -277,7 +293,10 @@ class GremlinIterator(object):
                 yield item
                 if counter == count:
                     break
-        return type(self)(iterator())
+        return type(self)(self.graphdb, iterator())
+
+    def __getitem__(self, slice):
+        raise NotImplementedError()
 
     def paginator(self, count):
         def iterator():
@@ -291,54 +310,52 @@ class GremlinIterator(object):
                     counter = 0
                     page = list()
             yield page
-        return type(self)(iterator())
+        return type(self)(self.graphdb, iterator())
 
     def count(self):
         return reduce(lambda x, y: x+1, self, 0)
 
-    def incomings(self, proc=None, **filters):
+    def _edges(self, vertex):
         def iterator():
-            for item in self:
-                for edge in item.incomings():
-                    yield edge
-        out = type(self)(iterator())
-        if proc or filters:
-            return out.filter(proc, **filters)
-        else:
-            return out
+            key = '_meta_%s' % vertex
+            for item in self.iterator:
+                records = self.graphdb._tuples.query(key, item.value)
+                for _, _, uid in records:
+                    result = GremlinResult(uid, item, None)
+                    yield result
+        return type(self)(self.graphdb, iterator())
 
-    def outgoings(self, proc=None, **filters):
-        def iterator():
-            for item in self:
-                for edge in item.outgoings():
-                    yield edge
-        out = type(self)(iterator())
-        if filters or proc:
-            return out.filter(proc, **filters)
-        else:
-            return out
+    def incomings(self):
+        return self._edges('end')
+
+    def outgoings(self):
+        return self._edges('start')
 
     def start(self):
-        return self.map(lambda x: x.start())
+        def iterator():
+            for item in self.iterator:
+                uid = self.graphdb._tuples.ref(item.value, '_meta_start')
+                result = GremlinResult(uid, item, None)
+                yield result
+        return type(self)(self.graphdb, iterator())
 
     def end(self):
-        return self.map(lambda x: x.end())
+        def iterator():
+            for item in self.iterator:
+                uid = self.graphdb._tuples.ref(item.value, '_meta_end')
+                result = GremlinResult(uid, item, None)
+                yield result
+        return type(self)(self.graphdb, iterator())
 
     def map(self, proc):
         def iterator():
-            for item in self:
-                yield proc(item)
-        return type(self)(iterator())
+            for item in self.iterator:
+                value = proc(self.graphdb, item.value)
+                yield GremlinResult(value, item, None)
+        return type(self)(self.graphdb, iterator())
 
     def dict(self):
-        def get_dict(x):
-            d = dict(x)
-            d.pop('_meta_type')
-            return d
-        return self.map(get_dict)
-
-    def uid(self):
-        return self.map(lambda x: x.uid)
+        return type(self)(self.graphdb, self.map(lambda g, v: dict(g.get(v))))
 
     def order(self, key=lambda x: x, reverse=False):
         out = sorted(
@@ -346,10 +363,15 @@ class GremlinIterator(object):
             key=key,
             reverse=reverse
         )
-        return type(self)(iter(out))
+        return type(self)(self.graphdb, iter(out))
 
     def property(self, name):
-        return self.map(lambda x: x.get(name))
+        def iterator():
+            for item in self.iterator:
+                value = self.graphdb._tuples.ref(item.value, name)
+                result = GremlinResult(value, item, None)
+                yield result
+        return type(self)(self.graphdb, iterator())
 
     def unique(self):
         # from ActiveState (MIT)
@@ -375,26 +397,25 @@ class GremlinIterator(object):
                     seen.add(keyitem)
                     yield item
 
-        iterator = __unique(self)
-        return type(self)(iterator)
+        iterator = __unique(self.iterator, lambda x: x.value)
+        return type(self)(self.graphdb, iterator)
 
-    def filter(self, func=None, **properties):
-        if func:
-            def iterator():
-                for item in self:
-                    if func(item):
-                        yield item
-            if properties:
-                return type(self)(iterator()).filter(**properties)
-            else:
-                return type(self)(iterator())
-        else:
-            def iterator():
-                filters = set(properties.items())
-                for item in self:
-                    if filters.issubset(item.items()):
-                        yield item
-            return type(self)(iterator())
+    def filter(self, **kwargs):
+        def iterator():
+            properties = set(kwargs.items())
+            for item in self.iterator:
+                element = self.graphdb.get(item.value)
+                if properties.issubset(element.items()):
+                    yield item
+        return type(self)(self.graphdb, iterator())
+
+    def step(self, name):
+        def set_step(item):
+            item.step = name
+        return map(set_step, self.iterator)
+
+    def back(self):
+        return map(lambda x: x.parent, self.iterator)
 
 
 class AjguDB(object):
@@ -425,7 +446,7 @@ class AjguDB(object):
             else:
                 return Edge(self, uid, properties)
         else:
-            raise AjguDBException('not found')
+            raise AjguDBException('%s not found' % uid)
 
     def vertex(self, **properties):
         uid = self._uid()
@@ -443,20 +464,20 @@ class AjguDB(object):
         def iterator():
             key, value = properties.items()[0]
             for _, _, uid in self._tuples.query(key, value):
-                yield self.get(uid)
+                yield GremlinResult(uid, None, None)
 
-        return GremlinIterator(iterator()).filter(**properties)
+        return GremlinIterator(self, iterator()).filter(**properties)
 
     def vertices(self):
         def iterator():
             for _, _, uid in self._tuples.query('_meta_type', 'vertex'):
-                yield self.get(uid)
+                yield GremlinResult(uid, None, None)
 
-        return GremlinIterator(iterator())
+        return GremlinIterator(self, iterator())
 
     def edges(self):
         def iterator():
             for _, _, uid in self._tuples.query('_meta_type', 'edge'):
-                yield self.get(uid)
+                yield GremlinResult(uid, None, None)
 
-        return GremlinIterator(iterator())
+        return GremlinIterator(self, iterator())

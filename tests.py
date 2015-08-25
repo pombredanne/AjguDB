@@ -3,11 +3,12 @@ import os
 from shutil import rmtree
 from unittest import TestCase
 
-from ajgudb import pack
-from ajgudb import unpack
 from ajgudb import AjguDB
-from ajgudb import TupleSpace
-from ajgudb import AjguDBException
+from ajgudb.packing import pack
+from ajgudb.packing import unpack
+
+from ajgudb.utils import AjguDBException
+from ajgudb.leveldb import LevelDBStorage
 
 
 class TestPacking(TestCase):
@@ -52,7 +53,7 @@ class TestTupleSpace(TestCase):
 
     def setUp(self):
         os.makedirs('/tmp/tuplespace')
-        self.tuplespace = TupleSpace('/tmp/tuplespace')
+        self.tuplespace = LevelDBStorage('/tmp/tuplespace')
 
     def tearDown(self):
         self.tuplespace.close()
@@ -196,24 +197,24 @@ class TestGraphDatabase(DatabaseTestCase):
 
 class TestGremlin(DatabaseTestCase):
 
-    def test_direct_filter(self):
+    def test_direct_select(self):
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='another', foo='bar')
-        self.assertEqual(self.graph.filter(label='test').count(), 2)
+        self.assertEqual(self.graph.select(label='test').count(), 2)
 
-    def test_direct_filters_two_properties(self):
+    def test_direct_selects_two_properties(self):
         self.graph.vertex(label='test', value=1, foo='bar')
         self.graph.vertex(label='test', value=2, foo='bar')
         self.graph.vertex(label='another', value=3, foo='bar')
-        self.assertEqual(self.graph.filter(label='test', value=1).count(), 1)
+        self.assertEqual(self.graph.select(label='test', value=1).count(), 1)
 
-    def test_indirect_filter(self):
+    def test_indirect_select(self):
         seed = self.graph.vertex(label='seed')
         seed.link(self.graph.vertex(label='one'))
         seed.link(self.graph.vertex(label='two'))
         seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(seed.outgoings().end().filter(label='one').count(), 2)
+        self.assertEqual(seed.outgoings().end().select(label='one').count(), 2)
 
     def test_all(self):
         seed = self.graph.vertex(label='seed')

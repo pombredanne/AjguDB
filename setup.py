@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 from setuptools import setup
+from setuptools import find_packages
 
 
 def read(fname):
@@ -14,8 +15,8 @@ setup(
     author_email='amirouche@hypermove.net',
     url='https://github.com/amirouche/ajgudb',
     description='Graph Database for everyday',
-    long_description=read('README.md'),
-    py_modules=['ajgudb'],
+    long_description=read('README.rst'),
+    packages=find_packages(),
     zip_safe=False,
     license='LGPLv2.1 or later',
     install_requires=[

@@ -126,19 +126,40 @@ Here are the provided steps:
   ``predicate`` takes ``AjguDB`` and ``GremlinResult`` as arugments
 - ``map(proc)``: apply proc to very value in the iterator.
   ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments.
-- ``average`` compute the average value.
+- ``mean`` compute the mean value.
+- ``group_count`` Return a counter made of the values from the previous step
 
 For instance you can do:
 
 .. code::
 
-   query = select(label='movie') | incomings | filter(label='rating') | key('value') | sort(lambda x.value) | limit 10 | back | end | value('title')
-   print(query(graphdb).all())
+   query = graphdb.query(select(label='movie'), incomings, filter(label='rating'), key('value'), sort(lambda x.value), limit(10), back, end, value('title'))
+   for movie in query(graphdb.vertices()):
+       print movie
 
-This will select the 10 poor film on movielens. If you want to only see the
-pooreset the movie you use ``one()`` instead of ``all``.
+This will select the 10 poorest film on movielens.
 
-   
+Missing steps with comments:
+
+- both, bothE, bothV => use incomings, outgoings, start and end)
+- gather, scatter, groupBy => why?
+- group_count with side effect => why?
+- memoize => why?
+- cap => why?
+- select => why?
+- and, or => use python
+- except, retain => use filter instead
+- hasNot => use filter instead
+- interval => use filter instead
+- random, shuffle => why?
+- optional => can't implement that without troubles
+- sideEffect => why?
+- store => why?
+- table => why?
+- tree => why?
+- branch steps => use python
+  
+
 Author
 ======
 

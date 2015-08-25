@@ -9,6 +9,7 @@ from ajgudb.packing import unpack
 
 from ajgudb.utils import AjguDBException
 from ajgudb.leveldb import LevelDBStorage
+from ajgudb.gremlin import *  # noqa
 
 
 class TestPacking(TestCase):
@@ -197,64 +198,56 @@ class TestGraphDatabase(DatabaseTestCase):
 
 class TestGremlin(DatabaseTestCase):
 
-    def test_direct_select(self):
+    def test_graph_select(self):
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='another', foo='bar')
-        self.assertEqual(self.graph.select(label='test').count(), 2)
+        count = len(list(self.graph.select(label='test')))
+        self.assertEqual(count, 2)
 
-    def test_direct_selects_two_properties(self):
+    def test_graph_select_two_properties(self):
         self.graph.vertex(label='test', value=1, foo='bar')
         self.graph.vertex(label='test', value=2, foo='bar')
         self.graph.vertex(label='another', value=3, foo='bar')
-        self.assertEqual(self.graph.select(label='test', value=1).count(), 1)
+        count = len(list(self.graph.select(label='test', value=1)))
+        self.assertEqual(count, 1)
 
-    def test_indirect_select(self):
+    def test_select(self):
         seed = self.graph.vertex(label='seed')
-        seed.link(self.graph.vertex(label='one'))
-        seed.link(self.graph.vertex(label='two'))
-        seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(seed.outgoings().end().select(label='one').count(), 2)
-
-    def test_all(self):
-        seed = self.graph.vertex(label='seed')
-        seed.link(self.graph.vertex(label='one'))
-        seed.link(self.graph.vertex(label='two'))
-        seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(len(seed.outgoings().get()), 3)
-
-    def test_one(self):
-        seed = self.graph.vertex(label='seed')
-        edge = seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(seed.outgoings().one(), edge)
-
-    def test_one_none_found(self):
-        seed = self.graph.vertex(label='seed')
-        self.assertEqual(seed.outgoings().one(None), None)
+        seed.link(self.graph.vertex(label='one'), label='ok')
+        seed.link(self.graph.vertex(label='two'), label='ok')
+        seed.link(self.graph.vertex(label='one'), label='ko')
+        query = self.graph.query(outgoings, select(label='ok'))
+        count = len(list(query(seed)))
+        self.assertEqual(count, 2)
 
     def test_empty_traversal(self):
-        seed = self.graph.vertex(label='seed')
-        self.assertEqual(seed.outgoings().end().outgoings().get(), [])
+        count = len(list(self.graph.query()([])))
+        self.assertEqual(count, 0)
 
     def test_skip(self):
         seed = self.graph.vertex(label='seed')
         seed.link(self.graph.vertex(label='one'))
         seed.link(self.graph.vertex(label='two'))
         seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(seed.outgoings().skip(2).count(), 1)
+        query = self.graph.query(outgoings, skip(2))
+        count = len(list(query(seed)))
+        self.assertEqual(count, 1)
 
     def test_limit(self):
         seed = self.graph.vertex(label='seed')
         seed.link(self.graph.vertex(label='one'))
         seed.link(self.graph.vertex(label='two'))
         seed.link(self.graph.vertex(label='one'))
-        self.assertEqual(seed.outgoings().limit(2).count(), 2)
+        query = self.graph.query(outgoings, limit(2))
+        count = len(list(query(seed)))
+        self.assertEqual(count, 2)
 
-    def test_paginator(self):
-        seed = self.graph.vertex(label='seed')
-        list(map(lambda x: seed.link(self.graph.vertex()), range(20)))
-        self.assertEqual(seed.outgoings().paginator(5).count(), 5)
-        self.assertEqual(seed.outgoings().paginator(5).count(), 5)
+    # def test_paginator(self):
+    #     seed = self.graph.vertex(label='seed')
+    #     list(map(lambda x: seed.link(self.graph.vertex()), range(20)))
+    #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
+    #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
 
     def test_outgoings(self):
         seed = self.graph.vertex()
@@ -262,19 +255,22 @@ class TestGremlin(DatabaseTestCase):
         seed.link(other)
         other.link(self.graph.vertex())
         other.link(self.graph.vertex())
-        self.assertEqual(seed.outgoings().end().outgoings().count(), 2)
+        query = self.graph.query(outgoings, end, outgoings, count)
+        self.assertEqual(query(seed), 2)
 
     def test_incomings(self):
         seed = self.graph.vertex()
         other = self.graph.vertex()
         link = seed.link(other)
-        self.assertEqual(other.incomings().one(), link)
+        query = self.graph.query(incomings, get)
+        self.assertEqual(query(other), [link])
 
     def test_incomings_two(self):
         seed = self.graph.vertex()
         other = self.graph.vertex()
         seed.link(other)
-        self.assertEqual(other.incomings().start().one(), seed)
+        query = self.graph.query(incomings, start, get)
+        self.assertEqual(query(other), [seed])
 
     def test_incomings_three(self):
         seed = self.graph.vertex()
@@ -282,42 +278,25 @@ class TestGremlin(DatabaseTestCase):
         seed.link(other)
         end = self.graph.vertex()
         other.link(end)
-        query = end.incomings().start().incomings().start().one()
-        self.assertEqual(query, seed)
+        query = self.graph.query(incomings, start, incomings, start, get)
+        self.assertEqual(query(end), [seed])
 
     def test_order(self):
         seed = self.graph.vertex()
         seed.link(self.graph.vertex(value=5))
         seed.link(self.graph.vertex(value=4))
         seed.link(self.graph.vertex(value=1))
-        self.assertEqual(
-            seed.outgoings().end().property('value').all(),
-            [5, 4, 1]
-        )
-        reversed = seed.outgoings().end().property('value')
-        reversed = reversed.order(lambda x: x).all()
-        self.assertEqual(
-            reversed,
-            [1, 4, 5]
-        )
+
+        query = self.graph.query(outgoings, end, key('value'), value)
+        self.assertEqual(set(query(seed)), set([5, 4, 1]))
+
+        query = self.graph.query(outgoings, end, key('value'), sort(), value)
+        self.assertEqual(query(seed), [1, 4, 5])
 
     def test_unique(self):
         seed = self.graph.vertex()
         seed.link(self.graph.vertex(value=1))
         seed.link(self.graph.vertex(value=1))
         seed.link(self.graph.vertex(value=1))
-        unified = seed.outgoings().end().property('value').unique().all()
-        self.assertEqual(
-            unified,
-            [1]
-        )
-
-    def test_dict(self):
-        seed = self.graph.vertex()
-        other = self.graph.vertex(value=1)
-        seed.link(other)
-        query = seed.outgoings().end().dict().all()
-        self.assertEqual(
-            query,
-            [dict(value=1)]
-        )
+        query = self.graph.query(outgoings, end, key('value'), unique, value)
+        self.assertEqual(query(seed), [1])

@@ -20,7 +20,6 @@ from utils import AjguDBException
 from leveldb import LevelDBStorage
 
 from gremlin import GremlinResult
-from gremlin import GremlinIterator
 
 
 class Base(dict):
@@ -48,13 +47,10 @@ class Vertex(Base):
         super(Vertex, self).__init__(properties)
 
     def _iter_edges(self, _vertex):
-        def edges():
-            key = '_meta_%s' % _vertex
-            records = self._graphdb._tuples.query(key, self.uid)
-            for _, _, uid in records:
-                yield GremlinResult(uid, None, None)
-
-        return GremlinIterator(self._graphdb, edges())
+        key = '_meta_%s' % _vertex
+        records = self._graphdb._tuples.query(key, self.uid)
+        for _, _, uid in records:
+            yield self._graphdb.get(uid)
 
     def incomings(self):
         return self._iter_edges('end')
@@ -137,7 +133,7 @@ class AjguDB(object):
             else:
                 return Edge(self, uid, properties)
         else:
-            raise AjguDBException('not found ' + uid)
+            raise AjguDBException('not found %s' % uid)
 
     def vertex(self, **properties):
         uid = self._uid()
@@ -145,37 +141,38 @@ class AjguDB(object):
         return Vertex(self, uid, properties)
 
     def get_or_create(self, **properties):
-        vertex = self.select(**properties).one(None)
-        if vertex:
-            return vertex
-        else:
+        try:
+            uid = next(self.select(**properties)).value
+        except StopIteration:
             return self.vertex(**properties)
+        else:
+            return self.get(uid)
 
     def query(self, *steps):
         def composed(iterator):
+            if isinstance(iterator, Base):
+                iterator = [GremlinResult(iterator.uid, None, None)]
             for step in steps:
                 iterator = step(self, iterator)
             return iterator
         return composed
 
-    def select(self, **properties):
-        def iterator():
-            key, value = properties.items()[0]
-            for _, _, uid in self._tuples.query(key, value):
+    def select(self, **kwargs):
+        items = kwargs.items()
+        for _, _, uid in self._tuples.query(*items[0]):
+            ok = True
+            for key, value in items[1:]:
+                other = self._tuples.ref(uid, key)
+                if value != other:
+                    ok = False
+                    break
+            if ok:
                 yield GremlinResult(uid, None, None)
-
-        return GremlinIterator(self, iterator()).select(**properties)
 
     def vertices(self):
-        def iterator():
-            for _, _, uid in self._tuples.query('_meta_type', 'vertex'):
-                yield GremlinResult(uid, None, None)
-
-        return GremlinIterator(self, iterator())
+        for _, _, uid in self._tuples.query('_meta_type', 'vertex'):
+            yield GremlinResult(uid, None, None)
 
     def edges(self):
-        def iterator():
-            for _, _, uid in self._tuples.query('_meta_type', 'edge'):
-                yield GremlinResult(uid, None, None)
-
-        return GremlinIterator(self, iterator())
+        for _, _, uid in self._tuples.query('_meta_type', 'edge'):
+            yield GremlinResult(uid, None, None)

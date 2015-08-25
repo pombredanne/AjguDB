@@ -38,6 +38,9 @@ class Base(dict):
     def __nonzero__(self):
         return True
 
+    def __hash__(self):
+        return self.uid
+
 
 class Vertex(Base):
 
@@ -152,6 +155,8 @@ class AjguDB(object):
         def composed(iterator):
             if isinstance(iterator, Base):
                 iterator = [GremlinResult(iterator.uid, None, None)]
+            elif isinstance(iterator, GremlinResult):
+                iterator = [iterator]
             for step in steps:
                 iterator = step(self, iterator)
             return iterator

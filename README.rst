@@ -117,14 +117,14 @@ Here are the provided steps:
 - ``both``: get both incomings and outgoings edges.
 - ``start``: get start vertex.
 - ``end``: get end vertex.
-- ``dict``: get the ``dict`` of the value.
+- ``value``: get the ``dict`` of the value.
 - ``order(key=lambda x: x, reverse=False)``: order the iterator.
 - ``key(name)`` Get the value of ``name`` key.
 - ``unique`` return an iterator with unique values.
 - ``select(**kwargs)`` return values matching ``kwargs``.
 - ``filter(predicate)`` return values satisfying ``predicate``.
   ``predicate`` takes ``AjguDB`` and ``GremlinResult`` as arugments
-- ``map(proc)``: apply proc to very value in the iterator.
+- ``each(proc)``: apply proc to very value in the iterator.
   ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments.
 - ``mean`` compute the mean value.
 - ``group_count`` Return a counter made of the values from the previous step

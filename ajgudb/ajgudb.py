@@ -137,7 +137,7 @@ class AjguDB(object):
             else:
                 return Edge(self, uid, properties)
         else:
-            raise AjguDBException('%s not found' % uid)
+            raise AjguDBException('not found ' + uid)
 
     def vertex(self, **properties):
         uid = self._uid()

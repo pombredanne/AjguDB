@@ -132,10 +132,10 @@ class GremlinIterator(object):
     def dict(self):
         return type(self)(self.graphdb, self.map(lambda g, v: dict(g.get(v.value))))
 
-    def order(self, key=lambda x: x, reverse=False):
+    def sort(self, key=lambda g, x: x, reverse=False):
         out = sorted(
             self,
-            key=key,
+            key=lambda x: key(self.graphdb, x),
             reverse=reverse
         )
         return type(self)(self.graphdb, iter(out))
@@ -197,4 +197,11 @@ class GremlinIterator(object):
         return map(set_step, self.iterator)
 
     def back(self):
-        return map(lambda x: x.parent, self.iterator)
+        def iterator():
+            for item in self.iterator:
+                yield item.parent
+        return type(self)(self.graphdb, iterator())
+
+    def average(self):
+        values = self.all()
+        return float(sum(values)) / float(len(values))

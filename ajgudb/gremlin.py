@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
 from collections import namedtuple
+from collections import Counter
 
 from utils import AjguDBException
 
@@ -23,185 +24,172 @@ from utils import AjguDBException
 GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
 
 
-class GremlinIterator(object):
-
-    sentinel = object()
-
-    def __init__(self, graphdb, iterator):
-        self.iterator = iterator
-        self.graphdb = graphdb
-
-    def __iter__(self):
-        return self.iterator
-
-    def all(self):
-        return list(map(lambda x: x.value, self.iterator))
-
-    def get(self):
-        return list(map(lambda x: self.graphdb.get(x.value), self.iterator))
-
-    def one(self, default=sentinel):
-        try:
-            uid = next(self.iterator).value
-        except StopIteration:
-            if default is self.sentinel:
-                raise AjguDBException('empty result')
-            else:
-                return default
-        else:
-            return self.graphdb.get(uid)
-
-    def skip(self, count):
-        def iterator():
-            counter = 0
-            for item in self:
-                counter += 1
-                if counter > count:
-                    yield item
-        return type(self)(self.graphdb, iterator())
-
-    def limit(self, count):
-        def iterator():
-            counter = 0
-            for item in self:
-                counter += 1
+def skip(count):
+    def step(graphdb, iterator):
+        counter = 0
+        for item in iterator:
+            counter += 1
+            if counter > count:
                 yield item
-                if counter == count:
+    return step
+
+
+def limit(count):
+    def step(graphdb, iterator):
+        counter = 0
+        for item in iterator:
+            counter += 1
+            yield item
+            if counter == count:
+                break
+
+
+def paginator(count):
+    def step(graphdb, iterator):
+        counter = 0
+        page = list()
+        for item in iterator:
+            page.append(item)
+            counter += 1
+            if counter == count:
+                yield page
+                counter = 0
+                page = list()
+        yield page
+    return step
+
+
+def count(graphdb, iterator):
+    return reduce(lambda x, y: x + 1, iterator, 0)
+
+
+def _edges(vertex):
+    def step(graphdb, iterator):
+        key = '_meta_%s' % vertex
+        for item in iterator:
+            records = graphdb._tuples.query(key, item.value)
+            for _, _, uid in records:
+                return GremlinResult(uid, item, None)
+    return step
+
+
+def incomings(self):
+    return self._edges('end')
+
+
+def outgoings(self):
+    return self._edges('start')
+
+
+def start(self):
+    for item in self.iterator:
+        uid = self.graphdb._tuples.ref(item.value, '_meta_start')
+        result = GremlinResult(uid, item, None)
+        yield result
+
+
+def end(self):
+    for item in self.iterator:
+        uid = self.graphdb._tuples.ref(item.value, '_meta_end')
+        result = GremlinResult(uid, item, None)
+        yield result
+
+
+def map(proc):
+    def step(graphdb, iterator):
+        return map(lambda x: proc(graphdb, x), iterator)
+
+
+def dict(graphdb, iterator):
+    return map(lambda x: dict(graphdb.get(x.value)))
+
+
+def sort(key=lambda g, x: x, reverse=False):
+    def step(graphdb, iterator):
+        out = sorted(iterator, key=key, reverse=reverse)
+        return iter(out)
+    return step
+
+
+def key(name):
+    def step(graphdb, iterator):
+        for item in iterator:
+            value = graphdb._tuples.ref(item.value, name)
+            result = GremlinResult(value, item, None)
+            yield result
+    return step
+
+
+def unique(graphdb, iterator):
+    # from ActiveState (MIT)
+    #
+    #   Lazy Ordered Unique elements from an iterator
+    #
+    def __unique(iterable, key=None):
+        seen = set()
+
+        if key is None:
+            # Optimize the common case
+            for item in iterable:
+                if item in seen:
+                    continue
+                seen.add(item)
+                yield item
+
+        else:
+            for item in iterable:
+                keyitem = key(item)
+                if keyitem in seen:
+                    continue
+                seen.add(keyitem)
+                yield item
+
+    iterator = __unique(iterator, lambda x: x.value)
+    return iterator
+
+
+def filter(predicate):
+    def step(graphdb, iterator):
+        for item in iterator:
+            if predicate(graphdb, item):
+                yield item
+    return step
+
+
+def select(**kwargs):
+    def step(graphdb, iterator):
+        for item in iterator:
+            ok = True
+            for key, value in kwargs.items():
+                other = graphdb._tuples.ref(item.value, key)
+                if other == value:
+                    ok = False
                     break
-        return type(self)(self.graphdb, iterator())
+        if ok:
+            yield item
+    return step
 
-    def __getitem__(self, slice):
-        raise NotImplementedError()
 
-    def paginator(self, count):
-        def iterator():
-            counter = 0
-            page = list()
-            for item in self:
-                page.append(item)
-                counter += 1
-                if counter == count:
-                    yield page
-                    counter = 0
-                    page = list()
-            yield page
-        return type(self)(self.graphdb, iterator())
+def step(name):
+    def step_(graphdb, iterator):
+        for item in iterator:
+            item.name
+            yield item
+    return step_
 
-    def count(self):
-        return reduce(lambda x, y: x+1, self, 0)
 
-    def _edges(self, vertex):
-        def iterator():
-            key = '_meta_%s' % vertex
-            for item in self.iterator:
-                records = self.graphdb._tuples.query(key, item.value)
-                for _, _, uid in records:
-                    result = GremlinResult(uid, item, None)
-                    yield result
-        return type(self)(self.graphdb, iterator())
+def back(graphdb, iterator):
+    return map(lambda x: x.parent, iterator)
 
-    def incomings(self):
-        return self._edges('end')
 
-    def outgoings(self):
-        return self._edges('start')
+def mean(graphdb, iterator):
+    count = 0
+    total = 0
+    for item in iterator:
+        total += item
+        count += 1
+    return total / count
 
-    def start(self):
-        def iterator():
-            for item in self.iterator:
-                uid = self.graphdb._tuples.ref(item.value, '_meta_start')
-                result = GremlinResult(uid, item, None)
-                yield result
-        return type(self)(self.graphdb, iterator())
 
-    def end(self):
-        def iterator():
-            for item in self.iterator:
-                uid = self.graphdb._tuples.ref(item.value, '_meta_end')
-                result = GremlinResult(uid, item, None)
-                yield result
-        return type(self)(self.graphdb, iterator())
-
-    def map(self, proc):
-        def iterator():
-            for item in self.iterator:
-                value = proc(self.graphdb, item)
-                yield GremlinResult(value, item, None)
-        return type(self)(self.graphdb, iterator())
-
-    def dict(self):
-        return type(self)(self.graphdb, self.map(lambda g, v: dict(g.get(v.value))))
-
-    def sort(self, key=lambda g, x: x, reverse=False):
-        out = sorted(
-            self,
-            key=lambda x: key(self.graphdb, x),
-            reverse=reverse
-        )
-        return type(self)(self.graphdb, iter(out))
-
-    def property(self, name):
-        def iterator():
-            for item in self.iterator:
-                value = self.graphdb._tuples.ref(item.value, name)
-                result = GremlinResult(value, item, None)
-                yield result
-        return type(self)(self.graphdb, iterator())
-
-    def unique(self):
-        # from ActiveState (MIT)
-        #
-        #   Lazy Ordered Unique elements from an iterator
-        #
-        def __unique(iterable, key=None):
-            seen = set()
-
-            if key is None:
-                # Optimize the common case
-                for item in iterable:
-                    if item in seen:
-                        continue
-                    seen.add(item)
-                    yield item
-
-            else:
-                for item in iterable:
-                    keyitem = key(item)
-                    if keyitem in seen:
-                        continue
-                    seen.add(keyitem)
-                    yield item
-
-        iterator = __unique(self.iterator, lambda x: x.value)
-        return type(self)(self.graphdb, iterator)
-
-    def filter(self, predicate):
-        def iterator():
-            for item in self.iterator:
-                if predicate(self.graphdb, item):
-                    yield item
-        return type(self)(self.graphdb, iterator())
-
-    def select(self, **kwargs):
-        properties = set(kwargs.items())
-
-        def predicate(graphdb, item):
-            element = graphdb.get(item.value)
-            return properties.issubset(element.items())
-
-        return self.filter(predicate)
-
-    def step(self, name):
-        def set_step(item):
-            item.step = name
-        return map(set_step, self.iterator)
-
-    def back(self):
-        def iterator():
-            for item in self.iterator:
-                yield item.parent
-        return type(self)(self.graphdb, iterator())
-
-    def average(self):
-        values = self.all()
-        return float(sum(values)) / float(len(values))
+def group_count(graphdb, iterator):
+    return Counter(iterator)

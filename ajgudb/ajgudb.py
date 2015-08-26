@@ -19,8 +19,6 @@ from utils import AjguDBException
 
 from leveldb import LevelDBStorage
 
-from gremlin import GremlinResult
-
 
 class Base(dict):
 
@@ -150,34 +148,3 @@ class AjguDB(object):
             return self.vertex(**properties)
         else:
             return self.get(uid)
-
-    def query(self, *steps):
-        def composed(iterator):
-            if isinstance(iterator, Base):
-                iterator = [GremlinResult(iterator.uid, None, None)]
-            elif isinstance(iterator, GremlinResult):
-                iterator = [iterator]
-            for step in steps:
-                iterator = step(self, iterator)
-            return iterator
-        return composed
-
-    def select(self, **kwargs):
-        items = kwargs.items()
-        for _, _, uid in self._tuples.query(*items[0]):
-            ok = True
-            for key, value in items[1:]:
-                other = self._tuples.ref(uid, key)
-                if value != other:
-                    ok = False
-                    break
-            if ok:
-                yield GremlinResult(uid, None, None)
-
-    def vertices(self):
-        for _, _, uid in self._tuples.query('_meta_type', 'vertex'):
-            yield GremlinResult(uid, None, None)
-
-    def edges(self):
-        for _, _, uid in self._tuples.query('_meta_type', 'edge'):
-            yield GremlinResult(uid, None, None)

@@ -18,45 +18,32 @@
 from collections import namedtuple
 from collections import Counter
 
-
-steps = list()
-
-
-def register(step):
-    steps.append(step)
-    return step
-
-
-# class GremlinResult(object):
-
-#     # __slots__ = ('value', 'parent', 'step')
-
-#     def __init__(self, value, parent, step, graphdb, iterator):
-#         self._graphdb = graphdb
-#         self._iterator = iterator
-#         self._value = value
-#         self._parent = parent
-#         self._step = step
-#         self._steps = dict()
-#         for step in steps:
-#             self._steps[step.__name__] = step
-
-#     def ___getattr__(self, name):
-#         return self._steps[name]
-
-#     def query(self, iterator):
-#         from .ajgudb import Base
-#         if isinstance(iterator, Base):
-#             iterator = [GremlinResult(iterator.uid, None, None)]
-#         elif isinstance(iterator, GremlinResult):
-#             iterator = [iterator]
-#         iterator = self.iterator
-#         for step in steps:
-#             iterator = step(self.graphdb, iterator)
-#         return iterator
+from ajgudb import Base
 
 
 GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
+
+
+def query(*steps):
+    def composed(graphdb, iterator):
+        if isinstance(iterator, Base):
+            iterator = [GremlinResult(iterator.uid, None, None)]
+        elif isinstance(iterator, GremlinResult):
+            iterator = [iterator]
+        for step in steps:
+            iterator = step(graphdb, iterator)
+        return iterator
+    return composed
+
+
+def vertices(graphdb):
+    for _, _, uid in graphdb._tuples.query('_meta_type', 'vertex'):
+        yield GremlinResult(uid, None, None)
+
+
+def edges(graphdb):
+    for _, _, uid in graphdb._tuples.query('_meta_type', 'edge'):
+        yield GremlinResult(uid, None, None)
 
 
 def skip(count):

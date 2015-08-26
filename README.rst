@@ -2,6 +2,8 @@
  AjguDB
 ========
 
+**This program is alpha becarful**
+
 - graphdb
 - schemaless
 - single thread

@@ -59,7 +59,6 @@ def register(step):
 GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
 
 
-@register
 def skip(count):
     def step(graphdb, iterator):
         counter = 0
@@ -70,7 +69,6 @@ def skip(count):
     return step
 
 
-@register
 def limit(count):
     def step(graphdb, iterator):
         counter = 0
@@ -82,7 +80,6 @@ def limit(count):
     return step
 
 
-@register
 def paginator(count):
     def step(graphdb, iterator):
         counter = 0
@@ -98,7 +95,6 @@ def paginator(count):
     return step
 
 
-@register
 def count(graphdb, iterator):
     return reduce(lambda x, y: x + 1, iterator, 0)
 
@@ -111,17 +107,14 @@ def _edges(vertex, graphdb, iterator):
             yield GremlinResult(uid, item, None)
 
 
-@register
 def incomings(graphdb, iterator):
     return _edges('end', graphdb, iterator)
 
 
-@register
 def outgoings(graphdb, iterator):
     return _edges('start', graphdb, iterator)
 
 
-@register
 def start(graphdb, iterator):
     for item in iterator:
         uid = graphdb._tuples.ref(item.value, '_meta_start')
@@ -129,7 +122,6 @@ def start(graphdb, iterator):
         yield result
 
 
-@register
 def end(graphdb, iterator):
     for item in iterator:
         uid = graphdb._tuples.ref(item.value, '_meta_end')
@@ -137,23 +129,19 @@ def end(graphdb, iterator):
         yield result
 
 
-@register
 def each(proc):
     def step(graphdb, iterator):
         return map(lambda x: proc(graphdb, x), iterator)
 
 
-@register
 def value(graphdb, iterator):
     return map(lambda x: x.value, iterator)
 
 
-@register
 def get(graphdb, iterator):
     return list(map(lambda x: graphdb.get(x.value), iterator))
 
 
-@register
 def sort(key=lambda g, x: x, reverse=False):
     def step(graphdb, iterator):
         out = sorted(iterator, key=lambda x: key(graphdb, x), reverse=reverse)
@@ -161,7 +149,6 @@ def sort(key=lambda g, x: x, reverse=False):
     return step
 
 
-@register
 def key(name):
     def step(graphdb, iterator):
         for item in iterator:
@@ -171,7 +158,6 @@ def key(name):
     return step
 
 
-@register
 def unique(graphdb, iterator):
     # from ActiveState (MIT)
     #
@@ -200,7 +186,6 @@ def unique(graphdb, iterator):
     return iterator
 
 
-@register
 def filter(predicate):
     def step(graphdb, iterator):
         for item in iterator:
@@ -209,7 +194,6 @@ def filter(predicate):
     return step
 
 
-@register
 def select(**kwargs):
     def step(graphdb, iterator):
         for item in iterator:
@@ -225,7 +209,6 @@ def select(**kwargs):
     return step
 
 
-@register
 def step(name):
     def step_(graphdb, iterator):
         for item in iterator:
@@ -234,12 +217,10 @@ def step(name):
     return step_
 
 
-@register
 def back(graphdb, iterator):
     return map(lambda x: x.parent, iterator)
 
 
-@register
 def mean(graphdb, iterator):
     count = 0
     total = 0
@@ -249,6 +230,18 @@ def mean(graphdb, iterator):
     return total / count
 
 
-@register
 def group_count(graphdb, iterator):
     return Counter(iterator)
+
+
+MockBase = namedtuple('MockBase', ('uid', ))
+
+
+def link(**kwargs):
+    def step(graphdb, iterator):
+        start = graphdb.get_or_create(**kwargs)
+        for item in iterator:
+            node = MockBase(item.value)
+            start.link(node)
+        yield start
+    return step

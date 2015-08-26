@@ -148,3 +148,10 @@ class AjguDB(object):
             return self.vertex(**properties)
         else:
             return self.get(uid)
+
+    def query(self, *steps):
+        from gremlin import query
+        return lambda iterator=None: query(*steps)(self, iterator)
+
+    def one(self):
+        raise NotImplementedError

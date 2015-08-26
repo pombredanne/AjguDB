@@ -18,14 +18,15 @@
 from collections import namedtuple
 from collections import Counter
 
-from ajgudb import Base
-
+from .ajgudb import Base
+from .utils import AjguDBException
 
 GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
 
 
 def query(*steps):
-    def composed(graphdb, iterator):
+    """Gremlin pipeline builder and executor"""
+    def composed(graphdb, iterator=None):
         if isinstance(iterator, Base):
             iterator = [GremlinResult(iterator.uid, None, None)]
         elif isinstance(iterator, GremlinResult):
@@ -36,12 +37,41 @@ def query(*steps):
     return composed
 
 
-def vertices(graphdb):
+def select(**kwargs):
+    """Iterator that *select* elements based on key value"""
+    def step(graphdb, iterator):
+        if iterator:
+            for item in iterator:
+                ok = True
+                for key, value in kwargs.items():
+                    other = graphdb._tuples.ref(item.value, key)
+                    if other != value:
+                        ok = False
+                        break
+                if ok:
+                    yield item
+        else:
+            items = kwargs.items()
+            for _, _, uid in graphdb._tuples.query(*items[0]):
+                ok = True
+                for key, value in items[1:]:
+                    other = graphdb._tuples.ref(uid, key)
+                    if value != other:
+                        ok = False
+                        break
+                if ok:
+                    yield GremlinResult(uid, None, None)
+    return step
+
+
+def vertices(graphdb, iterator):
+    """Iterator over all vertices"""
     for _, _, uid in graphdb._tuples.query('_meta_type', 'vertex'):
         yield GremlinResult(uid, None, None)
 
 
-def edges(graphdb):
+def edges(graphdb, iterator):
+    """Iterator over all edges"""
     for _, _, uid in graphdb._tuples.query('_meta_type', 'edge'):
         yield GremlinResult(uid, None, None)
 
@@ -178,21 +208,6 @@ def filter(predicate):
         for item in iterator:
             if predicate(graphdb, item):
                 yield item
-    return step
-
-
-def select(**kwargs):
-    def step(graphdb, iterator):
-        for item in iterator:
-            ok = True
-            for key, value in kwargs.items():
-                other = graphdb._tuples.ref(item.value, key)
-                if other != value:
-                    ok = False
-                    break
-            if ok:
-                yield item
-
     return step
 
 

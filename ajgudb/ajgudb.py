@@ -153,7 +153,7 @@ class AjguDB(object):
         from gremlin import query
         return lambda iterator=None: query(*steps)(self, iterator)
 
-    def one(self, properties):
+    def one(self, **properties):
         try:
             uid = next(self.select(**properties)).value
         except StopIteration:

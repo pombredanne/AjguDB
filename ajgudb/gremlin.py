@@ -148,11 +148,12 @@ def end(graphdb, iterator):
 
 def each(proc):
     def step(graphdb, iterator):
-        return map(lambda x: proc(graphdb, x), iterator)
+        return map(lambda x: GremlinResult(proc(graphdb, x), x, None), iterator)
+    return step
 
 
 def value(graphdb, iterator):
-    return map(lambda x: x.value, iterator)
+    return list(map(lambda x: x.value, iterator))
 
 
 def get(graphdb, iterator):
@@ -233,7 +234,13 @@ def mean(graphdb, iterator):
 
 
 def group_count(graphdb, iterator):
-    return Counter(iterator)
+    yield Counter(map(lambda x: x.value, iterator))
+
+
+def scatter(graphdb, iterator):
+    for item in iterator:
+        for other in item.value:
+            yield GremlinResult(other, item, None)
 
 
 MockBase = namedtuple('MockBase', ('uid', ))

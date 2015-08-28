@@ -13,6 +13,31 @@
 AjguDB wants to be a fast graph database for python to help your during your
 exploration.
 
+ChangeLog
+=========
+
+0.4.2
+-----
+
+- ajgudb:
+
+  - add a shortcut method ``AjguDB.one(**kwargs)`` to query for one element.
+
+- gremlin:
+
+  - fix ``group_count``, now it's a step and not a *final step*
+  - fix ``each`` to return ``GremlinResult`` so that history is not lost
+    and ``back`` can be used
+  - add ``scatter``, it's only useful after ``group_count`` so far.
+
+- tools:
+
+  - add a converstion function ``ajgudb.tools.to_gt`` to convert the database to
+    `graph-tool <https://graph-tool.skewed.de/>`_ graph.
+  - there is also a function ``to_nx`` to convert the database to
+    `networkx <http://networkx.github.io/>`_
+
+
 API Reference
 =============
 
@@ -145,14 +170,15 @@ Here are the provided steps:
   ``proc`` takes the ``AjguDB`` and ``GremlinResult`` as arugments.
 - ``mean`` compute the mean value.
 - ``group_count`` Return a counter made of the values from the previous step
-
+- ``scatter`` unroll the content of the iterator
+    
 They are a few steps missing compared to gremlin reference implementation.
 That said, you can easily implement them yourself:
 
 Missing steps with comments:
 
 - both, bothE, bothV => use incomings, outgoings, start and end)
-- gather, scatter, groupBy => ???
+- gather, groupBy => ???
 - group_count with side effect => ???
 - memoize => ???
 - cap => ???

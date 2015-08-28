@@ -121,7 +121,7 @@ Delete the ``Edge`` object.
 -----------
 
 This where the magic happens. You can query the graph by composing steps. It is
-similar to tinkerpop's `Gremlin <http://gremlindocs.spmallette.documentup.com>`_.
+similar to tinkerpop's `Gremlin language <http://gremlindocs.spmallette.documentup.com>`_.
 
 This are the functions that you have to use to query the graph using
 `AjguDB.query`.

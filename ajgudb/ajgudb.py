@@ -154,9 +154,12 @@ class AjguDB(object):
         return lambda iterator=None: query(*steps)(self, iterator)
 
     def one(self, **properties):
+        from gremlin import select
+        from gremlin import get
+        query = self.query(select(**properties), get)
         try:
-            uid = next(self.select(**properties)).value
-        except StopIteration:
+            element = query()[0]
+        except IndexError:
             return None
         else:
-            return self.get(uid)
+            return element

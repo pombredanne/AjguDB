@@ -2,6 +2,7 @@
 import os
 from shutil import rmtree
 from unittest import TestCase
+from time import sleep
 
 from ajgudb import AjguDB
 from ajgudb.packing import pack
@@ -10,6 +11,7 @@ from ajgudb.packing import unpack
 from ajgudb.utils import AjguDBException
 from ajgudb.bsddb import BSDDBStorage
 from ajgudb.leveldb import LevelDBStorage
+from ajgudb.wt import WiredTigerStorage
 from ajgudb.gremlin import *  # noqa
 
 
@@ -51,7 +53,7 @@ class TestPacking(TestCase):
         self.assertEqual(unpacked, [123, 'foobar', 3.14, dict(a='b')])
 
 
-class TestTupleSpace(TestCase):
+class TestLevelDBTupleSpace(TestCase):
 
     def setUp(self):
         os.makedirs('/tmp/tuplespace')
@@ -71,6 +73,11 @@ class TestTupleSpace(TestCase):
         out = list(self.tuplespace.query('key', 'value'))
         self.assertEqual(out, [['key', 'value', 1], ['key', 'value', 2]])
 
+    def test_add_and_ref(self):
+        self.tuplespace.add(1, key='value')
+        self.tuplespace.add(2, key='value')
+        self.assertEqual(self.tuplespace.ref(1, 'key'), 'value')
+
     def test_add_and_query_key_only(self):
         self.tuplespace.add(1, key='value')
         self.tuplespace.add(2, key='something')
@@ -80,9 +87,21 @@ class TestTupleSpace(TestCase):
 
     def test_delete(self):
         self.tuplespace.add(1, key='value')
+        out = list(self.tuplespace.query('key'))
         self.tuplespace.delete(1)
         out = list(self.tuplespace.query('key'))
         self.assertEqual(out, [])
+
+
+class TestWiredTigerTupleSpace(TestLevelDBTupleSpace):
+
+    def setUp(self):
+        os.makedirs('/tmp/tuplespace')
+        self.tuplespace = WiredTigerStorage('/tmp/tuplespace')
+
+    def tearDown(self):
+        self.tuplespace.close()
+        rmtree('/tmp/tuplespace')
 
 
 class DatabaseTestCase(TestCase):
@@ -108,6 +127,15 @@ class BaseTestGraphDatabase(object):
         v = self.graph.vertex(label='test')
         idem = self.graph.get(v.uid)
         self.assertEqual(v, idem)
+
+    def test_get_or_create(self):
+        v = self.graph.get_or_create(label='test')
+        self.assertIsNotNone(v)
+
+    def test_get_or_create_two(self):
+        self.graph.get_or_create(label='test')
+        v = self.graph.get_or_create(label='test')
+        self.assertIsNotNone(v)
 
     def test_create_and_get_vertex(self):
 
@@ -198,9 +226,15 @@ class BaseTestGraphDatabase(object):
         end = self.graph.get(end.uid)
         self.assertEquals(len(list(end.incomings())), 0)
 
+
 class TestBSDDDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
 
     storage_class = BSDDBStorage
+
+
+class TestWiredTigerGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
+
+    storage_class = WiredTigerStorage
 
 
 class TestLevelDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
@@ -208,10 +242,9 @@ class TestLevelDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
     storage_class = LevelDBStorage
 
 
-
 class BaseTestGremlin(object):
 
-    def test_graph_select(self):
+    def test_graph_one(self):
         self.graph.vertex(label='test', foo='bar')
         self.graph.vertex(label='test', foo='baz')
         self.graph.vertex(label='another', foo='foo')
@@ -318,3 +351,6 @@ class TestLevelDBGremlin(BaseTestGremlin, DatabaseTestCase):
     storage_class = LevelDBStorage
 
 
+class TestWiredTigerGremlin(BaseTestGremlin, DatabaseTestCase):
+
+    storage_class = WiredTigerStorage

@@ -18,6 +18,8 @@
 from collections import namedtuple
 from collections import Counter
 
+from itertools import imap
+
 from .ajgudb import Base
 from .utils import AjguDBException
 
@@ -148,16 +150,16 @@ def end(graphdb, iterator):
 
 def each(proc):
     def step(graphdb, iterator):
-        return map(lambda x: GremlinResult(proc(graphdb, x), x, None), iterator)
+        return imap(lambda x: GremlinResult(proc(graphdb, x), x, None), iterator)
     return step
 
 
 def value(graphdb, iterator):
-    return list(map(lambda x: x.value, iterator))
+    return list(imap(lambda x: x.value, iterator))
 
 
 def get(graphdb, iterator):
-    return list(map(lambda x: graphdb.get(x.value), iterator))
+    return list(imap(lambda x: graphdb.get(x.value), iterator))
 
 
 def sort(key=lambda g, x: x, reverse=False):
@@ -221,7 +223,7 @@ def step(name):
 
 
 def back(graphdb, iterator):
-    return map(lambda x: x.parent, iterator)
+    return imap(lambda x: x.parent, iterator)
 
 
 def mean(graphdb, iterator):
@@ -234,7 +236,7 @@ def mean(graphdb, iterator):
 
 
 def group_count(graphdb, iterator):
-    yield Counter(map(lambda x: x.value, iterator))
+    yield Counter(imap(lambda x: x.value, iterator))
 
 
 def scatter(graphdb, iterator):

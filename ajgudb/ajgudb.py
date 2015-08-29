@@ -108,8 +108,8 @@ class Edge(Base):
 
 class AjguDB(object):
 
-    def __init__(self, path):
-        self._tuples = LevelDBStorage(path)
+    def __init__(self, path, storage_class=LevelDBStorage):
+        self._tuples = storage_class(path)
 
     def close(self):
         self._tuples.close()
@@ -142,12 +142,11 @@ class AjguDB(object):
         return Vertex(self, uid, properties)
 
     def get_or_create(self, **properties):
-        try:
-            uid = next(self.select(**properties)).value
-        except StopIteration:
-            return self.vertex(**properties)
+        element = self.one(**properties)
+        if element:
+            return element
         else:
-            return self.get(uid)
+            return self.vertex(**properties)
 
     def query(self, *steps):
         from gremlin import query

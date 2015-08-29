@@ -8,6 +8,7 @@ from ajgudb.packing import pack
 from ajgudb.packing import unpack
 
 from ajgudb.utils import AjguDBException
+from ajgudb.bsddb import BSDDBStorage
 from ajgudb.leveldb import LevelDBStorage
 from ajgudb.gremlin import *  # noqa
 
@@ -86,16 +87,18 @@ class TestTupleSpace(TestCase):
 
 class DatabaseTestCase(TestCase):
 
+    storage_class = None
+
     def setUp(self):
         os.makedirs('/tmp/ajgudb')
-        self.graph = AjguDB('/tmp/ajgudb')
+        self.graph = AjguDB('/tmp/ajgudb', self.storage_class)
 
     def tearDown(self):
         self.graph.close()
         rmtree('/tmp/ajgudb')
 
 
-class TestGraphDatabase(DatabaseTestCase):
+class BaseTestGraphDatabase(object):
 
     def test_create_vertex(self):
         v = self.graph.vertex(label='test')
@@ -195,22 +198,25 @@ class TestGraphDatabase(DatabaseTestCase):
         end = self.graph.get(end.uid)
         self.assertEquals(len(list(end.incomings())), 0)
 
+class TestBSDDDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
 
-class TestGremlin(DatabaseTestCase):
+    storage_class = BSDDBStorage
+
+
+class TestLevelDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
+
+    storage_class = LevelDBStorage
+
+
+
+class BaseTestGremlin(object):
 
     def test_graph_select(self):
         self.graph.vertex(label='test', foo='bar')
-        self.graph.vertex(label='test', foo='bar')
-        self.graph.vertex(label='another', foo='bar')
-        count = len(list(self.graph.select(label='test')))
-        self.assertEqual(count, 2)
-
-    def test_graph_select_two_properties(self):
-        self.graph.vertex(label='test', value=1, foo='bar')
-        self.graph.vertex(label='test', value=2, foo='bar')
-        self.graph.vertex(label='another', value=3, foo='bar')
-        count = len(list(self.graph.select(label='test', value=1)))
-        self.assertEqual(count, 1)
+        self.graph.vertex(label='test', foo='baz')
+        self.graph.vertex(label='another', foo='foo')
+        obj = self.graph.one(label='test', foo='bar')
+        self.assertIsNotNone(obj)
 
     def test_select(self):
         seed = self.graph.vertex(label='seed')
@@ -300,3 +306,15 @@ class TestGremlin(DatabaseTestCase):
         seed.link(self.graph.vertex(value=1))
         query = self.graph.query(outgoings, end, key('value'), unique, value)
         self.assertEqual(query(seed), [1])
+
+
+class TestBSDDDBGremlin(BaseTestGremlin, DatabaseTestCase):
+
+    storage_class = BSDDBStorage
+
+
+class TestLevelDBGremlin(BaseTestGremlin, DatabaseTestCase):
+
+    storage_class = LevelDBStorage
+
+

@@ -127,8 +127,11 @@ class WiredTigerStorage(object):
             match = (key, value) if value else (key,)
 
             cursor.set_key(key, pack(value), 0)
-            if cursor.search_near() == WT_NOT_FOUND:
+            code = cursor.search_near()
+            if code == WT_NOT_FOUND:
                 return
+            if code == -1:
+                cursor.next()
 
             while True:
                 key, value, uid = cursor.get_key()

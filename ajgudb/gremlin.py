@@ -178,6 +178,18 @@ def key(name):
     return step
 
 
+def keys(*names):
+    def step(graphdb, iterator):
+        for item in iterator:
+            values = list()
+            for name in names:
+                value = graphdb._tuples.ref(item.value, name)
+                values.append(value)
+            result = GremlinResult(values, item, None)
+            yield result
+    return step
+
+
 def unique(graphdb, iterator):
     # from ActiveState (MIT)
     #

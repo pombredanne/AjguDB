@@ -162,6 +162,7 @@ Here are the provided steps:
 - ``value``: get the ``dict`` of the value.
 - ``order(key=lambda x: x, reverse=False)``: order the iterator.
 - ``key(name)`` Get the value of ``name`` key.
+- ``key(*names)`` Get the values of keys in ``names``.
 - ``unique`` return an iterator with unique values.
 - ``select(**kwargs)`` return values matching ``kwargs``.
 - ``filter(predicate)`` return values satisfying ``predicate``.

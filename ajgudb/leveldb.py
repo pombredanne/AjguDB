@@ -30,6 +30,7 @@ class LevelDBStorage(object):
             create_if_missing=True,
             lru_cache_size=10*10,
             bloom_filter_bits=64,
+            block_size=10**9,
             compression=None,
         )
         self.tuples = self.db.prefixed_db(b'tuples')

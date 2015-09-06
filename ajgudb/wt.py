@@ -125,7 +125,6 @@ class WiredTigerStorage(object):
     def query(self, key, value=''):
         with self.index() as cursor:
             match = (key, value) if value else (key,)
-
             cursor.set_key(key, pack(value), 0)
             code = cursor.search_near()
             if code == WT_NOT_FOUND:

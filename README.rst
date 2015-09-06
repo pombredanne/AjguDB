@@ -16,6 +16,24 @@ exploration.
 ChangeLog
 =========
 
+0.5
+---
+
+There is probably issues regarding encoding. I think there is no way to make
+the situations better without moving to python3.
+
+- ajgudb
+
+  - add bsddb backend
+  - add wiredtiger backend
+  - leveldb: increase block size to 1GB
+
+- gremlin:
+
+  - add `keys` to retrieve several keys at the same time
+  - use lazy `itertools.imap` instead of the gready python2's `map`
+
+
 0.4.2
 -----
 
@@ -172,7 +190,7 @@ Here are the provided steps:
 - ``mean`` compute the mean value.
 - ``group_count`` Return a counter made of the values from the previous step
 - ``scatter`` unroll the content of the iterator
-    
+
 They are a few steps missing compared to gremlin reference implementation.
 That said, you can easily implement them yourself:
 
@@ -195,7 +213,7 @@ Missing steps with comments:
 - table => ???
 - tree => ???
 - branch steps => use python
-  
+
 
 Author
 ======

@@ -24,7 +24,7 @@ class Base(dict):
         self._graphdb._tuples.delete(self.uid)
 
     def __eq__(self, other):
-        if isinstance(other, Base):
+        if isinstance(other, type(self)):
             return self.uid == other.uid
         return False
 
@@ -48,11 +48,15 @@ class Vertex(Base):
 
     def incomings(self):
         edges = self._graphdb._storage.links.incomings(self.uid)
+        # this method must be with care, since it fully consume
+        # the generator to avoid cursor leak
         edges = map(self._graphdb.edge.get, edges)
         return edges
 
     def outgoings(self):
         edges = self._graphdb._storage.links.outgoings(self.uid)
+        # this method must be with care, since it fully consume
+        # the generator to avoid cursor leak
         edges = map(self._graphdb.edge.get, edges)
         return edges
 
@@ -148,7 +152,7 @@ class EdgeManager(object):
         properties = self._graphdb._storage.edges.tuples(uid)
         label = self._graphdb._storage.edges.label(uid)
         start, end = self._graphdb._storage.links.get(uid)
-        return Vertex(self._graphdb, uid, start, label, end, properties)
+        return Edge(self._graphdb, uid, start, label, end, properties)
 
     def one(self, label, **properties):
         import gremlin

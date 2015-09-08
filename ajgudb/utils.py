@@ -15,7 +15,30 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
+from msgpack import loads
+from msgpack import dumps
+
+
+def pack(value):
+    return dumps(value, encoding='utf-8')
+
+
+def unpack(value):
+    return loads(value, encoding='utf-8')
 
 
 class AjguDBException(Exception):
     pass
+
+
+class CloseableIterator(object):
+
+    def __init__(self, iterator, close):
+        self.iterator = iterator
+        self.close = close
+
+    def __iter__(self):
+        return self.iterator
+
+    def next(self):
+        return next(self.iterator)

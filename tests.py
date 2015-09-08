@@ -10,7 +10,7 @@ from ajgudb import AjguDB
 from ajgudb.utils import AjguDBException
 from ajgudb.storage import Documents
 from ajgudb.storage import EdgeLinks
-from ajgudb.gremlin import *  # noqa
+from ajgudb import gremlin
 
 
 class TestDocuments(TestCase):
@@ -48,22 +48,23 @@ class TestDocuments(TestCase):
         self.documents.add('testing')
         self.documents.add('testing')
         self.documents.add('another')
-        uids = [x for x, y in self.documents.identifiers('testing')]
+        uids = list(self.documents.identifiers('testing'))
         self.assertEqual(uids, [1, 2])
 
     def test_identifiers_empty(self):
         self.documents.add('testing')
         self.documents.add('testing')
         self.documents.add('another')
-        uids = [x for x, y in self.documents.identifiers('empty')]
+        uids = list(self.documents.identifiers('empty'))
         self.assertEqual(uids, [])
 
     def test_identifiers_reset(self):
         self.documents.add('testing')
         self.documents.add('testing')
-        uid, reset = next(self.documents.identifiers('testing'))
+        iterator = self.documents.identifiers('testing')
+        uid = next(iterator)
         self.assertEqual(uid, 1)
-        reset()
+        iterator.close()
         self.assertEqual(len(self.documents._labels._indices), 1)
 
     def test_query_one(self):
@@ -72,10 +73,11 @@ class TestDocuments(TestCase):
         self.documents.add('another', dict(key='v2'))
         self.documents.add('foobar', dict(spam='egg'))
 
-        value, uid, reset = next(self.documents.query('key'))
+        iterator = self.documents.query('key')
+        value, uid = next(iterator)
         self.assertAlmostEqual(value, 'v1')
         self.assertAlmostEqual(uid, 1)
-        reset()
+        iterator.close()
         self.assertEqual(len(self.documents._tuples._indices), 1)
 
     def test_query_all(self):
@@ -84,7 +86,7 @@ class TestDocuments(TestCase):
         self.documents.add('testing', dict(key='v2'))
         self.documents.add('foobar', dict(spam='egg'))
 
-        values = [(a, b) for a, b, c in self.documents.query('key')]
+        values = list(self.documents.query('key'))
         self.assertAlmostEqual(values, [('v1', 1), ('v2', 2)])
         self.assertEqual(len(self.documents._tuples._indices), 1)
 
@@ -132,8 +134,8 @@ class TestEdgeLinks(TestCase):
         generator = self.edge_links.all()
         next(generator)
         self.assertEqual(len(self.edge_links._links), 0)
-        uid, start, end, reset = next(generator)
-        reset()
+        uid, start, end = next(generator)
+        generator.close()
         self.assertEqual(len(self.edge_links._links), 1)
 
     def test_outgoings(self):
@@ -146,9 +148,9 @@ class TestEdgeLinks(TestCase):
         generator = self.edge_links.outgoings(12)
         next(generator)
         self.assertEqual(len(self.edge_links._outgoings), 0)
-        end, reset = next(generator)
+        end = next(generator)
         self.assertEqual(end, 2)
-        reset()
+        generator.close()
         self.assertEqual(len(self.edge_links._outgoings), 1)
 
     def test_incomings(self):
@@ -161,9 +163,9 @@ class TestEdgeLinks(TestCase):
         generator = self.edge_links.incomings(14)
         next(generator)
         self.assertEqual(len(self.edge_links._incomings), 0)
-        start, reset = next(generator)
+        start = next(generator)
         self.assertEqual(start, 5)
-        reset()
+        generator.close()
         self.assertEqual(len(self.edge_links._incomings), 1)
 
 
@@ -187,17 +189,17 @@ class DatabaseTestCase(TestCase):
 
     def test_idem(self):
         v = self.graph.vertex.create(label='test')
-        idem = self.graph.get(v.uid)
+        idem = self.graph.vertex.get(v.uid)
         self.assertEqual(v, idem)
 
-    def test_get_or_create(self):
-        v = self.graph.vertex.get_or_create(label='test')
-        self.assertIsNotNone(v)
+    # def test_get_or_create(self):
+    #     v = self.graph.vertex.get_or_create(label='test')
+    #     self.assertIsNotNone(v)
 
-    def test_get_or_create_two(self):
-        v1 = self.graph.vertex.get_or_create(label='test')
-        v2 = self.graph.vertex.get_or_create(label='test')
-        self.assertEqual(v1, v2)
+    # def test_get_or_create_two(self):
+    #     v1 = self.graph.vertex.get_or_create(label='test')
+    #     v2 = self.graph.vertex.get_or_create(label='test')
+    #     self.assertEqual(v1, v2)
 
     def test_create_and_get_vertex(self):
         v1 = self.graph.vertex.create('test')
@@ -205,7 +207,7 @@ class DatabaseTestCase(TestCase):
         self.assertTrue(v1, v2)
 
     def test_create_with_properties_and_get_vertex(self):
-        v = self.graph.vertex.create('test', key=value)
+        v = self.graph.vertex.create('test', key='value')
         v = self.graph.vertex.get(v.uid)
 
         self.assertEqual(v['key'], 'value')

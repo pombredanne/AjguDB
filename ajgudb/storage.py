@@ -18,8 +18,9 @@
 from collections import defaultdict
 from wiredtiger import wiredtiger_open
 
-from pack import pack
-from pack import unpack
+from utils import pack
+from utils import unpack
+from utils import CloseableIterator
 
 
 WT_NOT_FOUND = -31803
@@ -126,21 +127,25 @@ class Documents(object):
             manager.reset()
         elif code == -1:
             manager.next()
-        while True:
-            other = manager.get_key()
-            ok = reduce(
-                lambda previous, x: (cmp(*x) == 0) and previous,
-                zip((label,), other),
-                True
-            )
-            if ok:
-                _, uid = other
-                yield uid, manager.reset
-                if manager.next() == WT_NOT_FOUND:
+
+        def iterator():
+            while True:
+                other = manager.get_key()
+                ok = reduce(
+                    lambda previous, x: (cmp(*x) == 0) and previous,
+                    zip((label,), other),
+                    True
+                )
+                if ok:
+                    _, uid = other
+                    yield uid
+                    if manager.next() == WT_NOT_FOUND:
+                        manager.reset()
+                        break
+                else:
+                    manager.reset()
                     break
-            else:
-                break
-        manager.reset()
+        return CloseableIterator(iterator(), manager.reset)
 
     def add(self, label, properties=None):
         if not properties:
@@ -222,23 +227,26 @@ class Documents(object):
         if code == -1:
             manager.next()
 
-        while True:
-            key, value, uid = manager.get_key()
-            value = unpack(value)
-            other = (key, value)
-            ok = reduce(
-                lambda previous, x: (cmp(*x) == 0) and previous,
-                zip(match, other),
-                True
-            )
-            if ok:
-                yield value, uid, manager.reset
-                if manager.next() == WT_NOT_FOUND:
+        def iterator():
+            while True:
+                key, value, uid = manager.get_key()
+                value = unpack(value)
+                other = (key, value)
+                ok = reduce(
+                    lambda previous, x: (cmp(*x) == 0) and previous,
+                    zip(match, other),
+                    True
+                )
+                if ok:
+                    yield value, uid
+                    if manager.next() == WT_NOT_FOUND:
+                        manager.reset()
+                        break
+                else:
+                    manager.reset()
                     break
-            else:
-                break
 
-        manager.reset()
+        return CloseableIterator(iterator(), manager.reset)
 
 
 class EdgeLinks(object):
@@ -308,13 +316,16 @@ class EdgeLinks(object):
         if code == -1:
             manager.next()
 
-        while True:
-            uid = manager.get_key()
-            start, end = manager.get_value()
-            yield uid, start, end, manager.reset
-            if manager.next() == WT_NOT_FOUND:
-                break
-        manager.reset()
+        def iterator():
+            while True:
+                uid = manager.get_key()
+                start, end = manager.get_value()
+                yield uid, start, end
+                if manager.next() == WT_NOT_FOUND:
+                    manager.reset()
+                    break
+
+        return CloseableIterator(iterator(), manager.reset)
 
     def outgoings(self, start):
         manager = CursorContextManager(
@@ -332,15 +343,18 @@ class EdgeLinks(object):
         if code == -1:
             manager.next()
 
-        while True:
-            other, uid = manager.get_key()
-            if other == start:
-                yield uid, manager.reset
-                if manager.next() == WT_NOT_FOUND:
+        def iterator():
+            while True:
+                other, uid = manager.get_key()
+                if other == start:
+                    yield uid
+                    if manager.next() == WT_NOT_FOUND:
+                        manager.reset()
+                        break
+                else:
+                    manager.reset()
                     break
-            else:
-                break
-        manager.reset()
+        return CloseableIterator(iterator(), manager.reset)
 
     def incomings(self, end):
         manager = CursorContextManager(
@@ -358,15 +372,18 @@ class EdgeLinks(object):
         if code == -1:
             manager.next()
 
-        while True:
-            other, uid = manager.get_key()
-            if other == end:
-                yield uid, manager.reset
-                if manager.next() == WT_NOT_FOUND:
+        def iterator():
+            while True:
+                other, uid = manager.get_key()
+                if other == end:
+                    yield uid
+                    if manager.next() == WT_NOT_FOUND:
+                        manager.reset()
+                        break
+                else:
+                    manager.reset()
                     break
-            else:
-                break
-        manager.reset()
+        return CloseableIterator(iterator(), manager.reset)
 
 
 class Storage(object):

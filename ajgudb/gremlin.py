@@ -21,9 +21,11 @@ from collections import Counter
 from itertools import imap
 
 from .ajgudb import Base
-from .utils import AjguDBException
 
-GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
+
+VERTEX, EDGE = range(2)
+
+GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'kind'))
 
 
 def query(*steps):

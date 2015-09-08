@@ -52,8 +52,11 @@ class CursorContextManager(object):
         self.insert = cursor.insert
 
     def reset(self):
-        self._cursor.reset()
-        self._cursors.append(self._cursor)
+        if self._cursor:
+            self._cursor.reset()
+            self._cursors.append(self._cursor)
+            self._cursor = None
+        # else already reset.
 
     def __enter__(self):
         return self._cursor

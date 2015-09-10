@@ -122,6 +122,7 @@ class VertexManager(object):
         query = gremlin.query(
             gremlin.vertices(label),
             gremlin.select(**properties),
+            gremlin.limit(1),
             gremlin.get
         )
         try:
@@ -136,7 +137,7 @@ class VertexManager(object):
         if element:
             return element
         else:
-            return self.vertex(label, **properties)
+            return self._graphdb.vertex.create(label, **properties)
 
     def query(self, *steps):
         import gremlin
@@ -159,6 +160,7 @@ class EdgeManager(object):
         query = gremlin.query(
             gremlin.edges(label),
             gremlin.select(**properties),
+            gremlin.limit(1),
             gremlin.get
         )
         try:

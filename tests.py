@@ -58,27 +58,15 @@ class TestDocuments(TestCase):
         uids = list(self.documents.identifiers('empty'))
         self.assertEqual(uids, [])
 
-    def test_identifiers_reset(self):
-        self.documents.add('testing')
-        self.documents.add('testing')
-        iterator = self.documents.identifiers('testing')
-        uid = next(iterator)
-        self.assertEqual(uid, 1)
-        iterator.close()
-        self.assertEqual(len(self.documents._labels._indices), 1)
-
     def test_query_one(self):
         self.documents.index('testing', 'key')
         self.documents.add('testing', dict(key='v1'))
         self.documents.add('another', dict(key='v2'))
         self.documents.add('foobar', dict(spam='egg'))
 
-        iterator = self.documents.query('key')
-        value, uid = next(iterator)
+        value, uid = self.documents.query('key')[0]
         self.assertAlmostEqual(value, 'v1')
         self.assertAlmostEqual(uid, 1)
-        iterator.close()
-        self.assertEqual(len(self.documents._tuples._indices), 1)
 
     def test_query_all(self):
         self.documents.index('testing', 'key')
@@ -115,29 +103,6 @@ class TestEdgeLinks(TestCase):
         count = len(list(self.edge_links.all()))
         self.assertEqual(count, 4)
 
-    def test_all_recycle_cursor(self):
-        self.edge_links.add(0, 0, 11)
-        self.edge_links.add(1, 0, 12)
-        self.edge_links.add(2, 0, 13)
-        self.edge_links.add(3, 0, 14)
-        generator = self.edge_links.all()
-        next(generator)
-        self.assertEqual(len(self.edge_links._links), 0)
-        list(generator)
-        self.assertEqual(len(self.edge_links._links), 1)
-
-    def test_partial_all_recycle_cursor(self):
-        self.edge_links.add(0, 0, 11)
-        self.edge_links.add(1, 0, 12)
-        self.edge_links.add(2, 0, 13)
-        self.edge_links.add(3, 0, 14)
-        generator = self.edge_links.all()
-        next(generator)
-        self.assertEqual(len(self.edge_links._links), 0)
-        uid, start, end = next(generator)
-        generator.close()
-        self.assertEqual(len(self.edge_links._links), 1)
-
     def test_outgoings(self):
         self.edge_links.add(0, 1, 14)
         self.edge_links.add(1, 12, 11)
@@ -145,13 +110,8 @@ class TestEdgeLinks(TestCase):
         self.edge_links.add(3, 12, 13)
         self.edge_links.add(4, 12, 14)
         self.edge_links.add(5, 32, 14)
-        generator = self.edge_links.outgoings(12)
-        next(generator)
-        self.assertEqual(len(self.edge_links._outgoings), 0)
-        end = next(generator)
-        self.assertEqual(end, 2)
-        generator.close()
-        self.assertEqual(len(self.edge_links._outgoings), 1)
+        end = self.edge_links.outgoings(12)[0]
+        self.assertEqual(end, 1)
 
     def test_incomings(self):
         self.edge_links.add(1, 1, 14)
@@ -160,13 +120,8 @@ class TestEdgeLinks(TestCase):
         self.edge_links.add(4, 12, 13)
         self.edge_links.add(5, 12, 14)
         self.edge_links.add(6, 32, 14)
-        generator = self.edge_links.incomings(14)
-        next(generator)
-        self.assertEqual(len(self.edge_links._incomings), 0)
-        start = next(generator)
-        self.assertEqual(start, 5)
-        generator.close()
-        self.assertEqual(len(self.edge_links._incomings), 1)
+        start = self.edge_links.incomings(14)[0]
+        self.assertEqual(start, 1)
 
 
 class DatabaseTestCase(TestCase):
@@ -184,22 +139,22 @@ class DatabaseTestCase(TestCase):
         rmtree('/tmp/ajgudb')
 
     def test_create_vertex(self):
-        v = self.graph.vertex.create(label='test')
+        v = self.graph.vertex.create('test')
         self.assertTrue(v)
 
     def test_idem(self):
-        v = self.graph.vertex.create(label='test')
+        v = self.graph.vertex.create('test')
         idem = self.graph.vertex.get(v.uid)
         self.assertEqual(v, idem)
 
-    # def test_get_or_create(self):
-    #     v = self.graph.vertex.get_or_create(label='test')
-    #     self.assertIsNotNone(v)
+    def test_get_or_create(self):
+        v = self.graph.vertex.get_or_create('test')
+        self.assertIsNotNone(v)
 
-    # def test_get_or_create_two(self):
-    #     v1 = self.graph.vertex.get_or_create(label='test')
-    #     v2 = self.graph.vertex.get_or_create(label='test')
-    #     self.assertEqual(v1, v2)
+    def test_get_or_create_two(self):
+        v1 = self.graph.vertex.get_or_create(label='test')
+        v2 = self.graph.vertex.get_or_create(label='test')
+        self.assertEqual(v1, v2)
 
     def test_create_and_get_vertex(self):
         v1 = self.graph.vertex.create('test')
@@ -236,101 +191,101 @@ class DatabaseTestCase(TestCase):
         self.assertTrue(end.incomings())
 
 
+class TestGremlin(TestCase):
 
-# class BaseTestGremlin(object):
+    def setUp(self):
+        try:
+            rmtree('/tmp/ajgudb')
+        except OSError:
+            pass
+        os.makedirs('/tmp/ajgudb')
+        self.graph = AjguDB('/tmp/ajgudb')
 
-#     def test_graph_one(self):
-#         self.graph.vertex(label='test', foo='bar')
-#         self.graph.vertex(label='test', foo='baz')
-#         self.graph.vertex(label='another', foo='foo')
-#         obj = self.graph.one(label='test', foo='bar')
-#         self.assertIsNotNone(obj)
+    def tearDown(self):
+        self.graph.close()
+        rmtree('/tmp/ajgudb')
 
-#     def test_select(self):
-#         seed = self.graph.vertex(label='seed')
-#         seed.link(self.graph.vertex(label='one'), label='ok')
-#         seed.link(self.graph.vertex(label='two'), label='ok')
-#         seed.link(self.graph.vertex(label='one'), label='ko')
-#         query = self.graph.query(outgoings, select(label='ok'))
-#         count = len(list(query(seed)))
-#         self.assertEqual(count, 2)
+    def test_select(self):
+        seed = self.graph.vertex.create('seed')
+        seed.link('test', self.graph.vertex.create('one'), ok=True)
+        seed.link('test', self.graph.vertex.create('two'), ok=True)
+        seed.link('test', self.graph.vertex.create('one'), ok=False)
+        query = gremlin.query(gremlin.outgoings, gremlin.select(ok=True))
+        count = len(list(query(self.graph, seed)))
+        self.assertEqual(count, 2)
 
-#     def test_empty_traversal(self):
-#         count = len(list(self.graph.query()([])))
-#         self.assertEqual(count, 0)
+    def test_skip(self):
+        seed = self.graph.vertex.create('seed')
+        seed.link('test', self.graph.vertex.create('one'))
+        seed.link('test', self.graph.vertex.create('two'))
+        seed.link('test', self.graph.vertex.create('one'))
+        query = gremlin.query(gremlin.outgoings, gremlin.skip(2))
+        count = len(list(query(self.graph, seed)))
+        self.assertEqual(count, 1)
 
-#     def test_skip(self):
-#         seed = self.graph.vertex(label='seed')
-#         seed.link(self.graph.vertex(label='one'))
-#         seed.link(self.graph.vertex(label='two'))
-#         seed.link(self.graph.vertex(label='one'))
-#         query = self.graph.query(outgoings, skip(2))
-#         count = len(list(query(seed)))
-#         self.assertEqual(count, 1)
+    def test_limit(self):
+        seed = self.graph.vertex.create('seed')
+        seed.link('test', self.graph.vertex.create('one'))
+        seed.link('test', self.graph.vertex.create('two'))
+        seed.link('test', self.graph.vertex.create('one'))
+        query = gremlin.query(gremlin.outgoings, gremlin.limit(2))
+        count = len(list(query(self.graph, seed)))
+        self.assertEqual(count, 2)
 
-#     def test_limit(self):
-#         seed = self.graph.vertex(label='seed')
-#         seed.link(self.graph.vertex(label='one'))
-#         seed.link(self.graph.vertex(label='two'))
-#         seed.link(self.graph.vertex(label='one'))
-#         query = self.graph.query(outgoings, limit(2))
-#         count = len(list(query(seed)))
-#         self.assertEqual(count, 2)
+    # def test_paginator(self):
+    #     seed = self.graph.vertex('seed')
+    #     list(map(lambda x: seed.link('test', self.graph.vertex()), range(20)))
+    #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
+    #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
 
-#     # def test_paginator(self):
-#     #     seed = self.graph.vertex(label='seed')
-#     #     list(map(lambda x: seed.link(self.graph.vertex()), range(20)))
-#     #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
-#     #     self.assertEqual(seed.outgoings().paginator(5).count(), 5)
+    def test_outgoings(self):
+        seed = self.graph.vertex.create('test')
+        other = self.graph.vertex.create('test')
+        seed.link('test', other)
+        other.link('test', self.graph.vertex.create('test'))
+        other.link('test', self.graph.vertex.create('test'))
+        query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.outgoings, gremlin.count)
+        self.assertEqual(query(self.graph, seed), 2)
 
-#     def test_outgoings(self):
-#         seed = self.graph.vertex()
-#         other = self.graph.vertex()
-#         seed.link(other)
-#         other.link(self.graph.vertex())
-#         other.link(self.graph.vertex())
-#         query = self.graph.query(outgoings, end, outgoings, count)
-#         self.assertEqual(query(seed), 2)
+    def test_incomings(self):
+        seed = self.graph.vertex.create('test')
+        other = self.graph.vertex.create('test')
+        link = seed.link('test', other)
+        query = gremlin.query(gremlin.incomings, gremlin.get)
+        self.assertEqual(query(self.graph, other), [link])
 
-#     def test_incomings(self):
-#         seed = self.graph.vertex()
-#         other = self.graph.vertex()
-#         link = seed.link(other)
-#         query = self.graph.query(incomings, get)
-#         self.assertEqual(query(other), [link])
+    def test_incomings_two(self):
+        seed = self.graph.vertex.create('test')
+        other = self.graph.vertex.create('test')
+        seed.link('test', other)
+        query = gremlin.query(gremlin.incomings, gremlin.start, gremlin.get)
+        self.assertEqual(query(self.graph, other), [seed])
 
-#     def test_incomings_two(self):
-#         seed = self.graph.vertex()
-#         other = self.graph.vertex()
-#         seed.link(other)
-#         query = self.graph.query(incomings, start, get)
-#         self.assertEqual(query(other), [seed])
+    def test_incomings_three(self):
+        seed = self.graph.vertex.create('test')
+        other = self.graph.vertex.create('test')
+        seed.link('test', other)
+        end = self.graph.vertex.create('test')
+        other.link('test', end)
+        query = gremlin.query(gremlin.incomings, gremlin.start, gremlin.incomings, gremlin.start, gremlin.get)
+        self.assertEqual(query(self.graph, end), [seed])
 
-#     def test_incomings_three(self):
-#         seed = self.graph.vertex()
-#         other = self.graph.vertex()
-#         seed.link(other)
-#         end = self.graph.vertex()
-#         other.link(end)
-#         query = self.graph.query(incomings, start, incomings, start, get)
-#         self.assertEqual(query(end), [seed])
+    def test_order(self):
+        seed = self.graph.vertex.create('test')
+        seed.link('test', self.graph.vertex.create('test', value=5))
+        seed.link('test', self.graph.vertex.create('test', value=4))
+        seed.link('test', self.graph.vertex.create('test', value=1))
 
-#     def test_order(self):
-#         seed = self.graph.vertex()
-#         seed.link(self.graph.vertex(value=5))
-#         seed.link(self.graph.vertex(value=4))
-#         seed.link(self.graph.vertex(value=1))
+        query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.value)
+        self.assertEqual(set(query(self.graph, seed)), set([5, 4, 1]))
 
-#         query = self.graph.query(outgoings, end, key('value'), value)
-#         self.assertEqual(set(query(seed)), set([5, 4, 1]))
+        query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.sort(), gremlin.value)
+        self.assertEqual(query(self.graph, seed), [1, 4, 5])
 
-#         query = self.graph.query(outgoings, end, key('value'), sort(), value)
-#         self.assertEqual(query(seed), [1, 4, 5])
-
-#     def test_unique(self):
-#         seed = self.graph.vertex()
-#         seed.link(self.graph.vertex(value=1))
-#         seed.link(self.graph.vertex(value=1))
-#         seed.link(self.graph.vertex(value=1))
-#         query = self.graph.query(outgoings, end, key('value'), unique, value)
-#         self.assertEqual(query(seed), [1])
+    def test_unique(self):
+        seed = self.graph.vertex.create('test')
+        seed.link('test', self.graph.vertex.create('test', value=1))
+        seed.link('test', self.graph.vertex.create('test', value=1))
+        seed.link('test', self.graph.vertex.create('test', value=1))
+        query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.unique, gremlin.value)
+        self.assertEqual(query(self.graph, seed), [1])

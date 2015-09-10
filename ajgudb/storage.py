@@ -20,7 +20,7 @@ from wiredtiger import wiredtiger_open
 
 from utils import pack
 from utils import unpack
-from utils import CloseableIterator
+
 
 
 WT_NOT_FOUND = -31803
@@ -128,6 +128,8 @@ class Documents(object):
         code = manager.search_near()
         if code == WT_NOT_FOUND:
             manager.reset()
+            return list()
+
         elif code == -1:
             manager.next()
 
@@ -148,7 +150,7 @@ class Documents(object):
                 else:
                     manager.reset()
                     break
-        return CloseableIterator(iterator(), manager.reset)
+        return list(iterator())
 
     def add(self, label, properties=None):
         if not properties:
@@ -249,7 +251,7 @@ class Documents(object):
                     manager.reset()
                     break
 
-        return CloseableIterator(iterator(), manager.reset)
+        return list(iterator())
 
 
 class EdgeLinks(object):
@@ -314,7 +316,7 @@ class EdgeLinks(object):
 
         if code == WT_NOT_FOUND:
             manager.reset()
-            return
+            return list()
 
         if code == -1:
             manager.next()
@@ -328,7 +330,7 @@ class EdgeLinks(object):
                     manager.reset()
                     break
 
-        return CloseableIterator(iterator(), manager.reset)
+        return list(iterator())
 
     def outgoings(self, start):
         manager = CursorContextManager(
@@ -341,7 +343,7 @@ class EdgeLinks(object):
 
         if code == WT_NOT_FOUND:
             manager.reset()
-            return
+            return list()
 
         if code == -1:
             manager.next()
@@ -357,7 +359,7 @@ class EdgeLinks(object):
                 else:
                     manager.reset()
                     break
-        return CloseableIterator(iterator(), manager.reset)
+        return list(iterator())
 
     def incomings(self, end):
         manager = CursorContextManager(
@@ -386,7 +388,7 @@ class EdgeLinks(object):
                 else:
                     manager.reset()
                     break
-        return CloseableIterator(iterator(), manager.reset)
+        return list(iterator())
 
 
 class Storage(object):

@@ -10,8 +10,8 @@
 - transaction-less
 - LGPLv2.1 or later
 
-AjguDB wants to be a fast graph database for python to help your during your
-exploration.
+AjguDB wants to be a fast enough graph database for exploring connected data in
+python.
 
 ChangeLog
 =========

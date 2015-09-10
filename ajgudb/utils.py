@@ -29,16 +29,3 @@ def unpack(value):
 
 class AjguDBException(Exception):
     pass
-
-
-class CloseableIterator(object):
-
-    def __init__(self, iterator, close):
-        self.iterator = iterator
-        self.close = close
-
-    def __iter__(self):
-        return self.iterator
-
-    def next(self):
-        return next(self.iterator)

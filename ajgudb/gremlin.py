@@ -15,10 +15,13 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
+from itertools import imap
+
 from collections import namedtuple
 from collections import Counter
 
-from .ajgudb import Base
+from .ajgudb import Vertex
+from .ajgudb import Edge
 
 
 VERTEX, EDGE = range(2)
@@ -29,8 +32,10 @@ GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'kind'))
 def query(*steps):
     """Gremlin pipeline builder and executor"""
     def composed(graphdb, iterator=None):
-        if isinstance(iterator, Base):
-            iterator = [GremlinResult(iterator.uid, None, None)]
+        if isinstance(iterator, Vertex):
+            iterator = [GremlinResult(iterator.uid, None, VERTEX)]
+        elif isinstance(iterator, Edge):
+            iterator = [GremlinResult(iterator.uid, None, EDGE)]
         elif isinstance(iterator, GremlinResult):
             iterator = [iterator]
         for step in steps:
@@ -155,12 +160,12 @@ def end(graphdb, iterator):
 
 def each(proc):
     def step(graphdb, iterator):
-        return map(lambda x: GremlinResult(proc(graphdb, x), x, None), iterator)  # noqa
+        return imap(lambda x: GremlinResult(proc(graphdb, x), x, None), iterator)  # noqa
     return step
 
 
 def value(graphdb, iterator):
-    return map(lambda x: x.value, iterator)
+    return imap(lambda x: x.value, iterator)
 
 
 def get(graphdb, iterator):
@@ -243,7 +248,20 @@ def filter(predicate):
 
 
 def back(graphdb, iterator):
-    return map(lambda x: x.parent, iterator)
+    return imap(lambda x: x.parent, iterator)
+
+
+def path(steps):
+
+    def path_(previous, _):
+        previous.append(previous[-1].parent)
+        return previous
+
+    def step(graphdb, iterator):
+        for item in iterator:
+            yield reduce(path_, range(steps), [item])
+
+    return step
 
 
 def mean(graphdb, iterator):

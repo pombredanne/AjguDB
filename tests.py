@@ -7,7 +7,6 @@ from wiredtiger import wiredtiger_open
 
 from ajgudb import AjguDB
 
-from ajgudb.utils import AjguDBException
 from ajgudb.storage import Documents
 from ajgudb.storage import EdgeLinks
 from ajgudb import gremlin
@@ -260,6 +259,20 @@ class TestGremlin(TestCase):
         seed.link('test', other)
         query = gremlin.query(gremlin.incomings, gremlin.start, gremlin.get)
         self.assertEqual(query(self.graph, other), [seed])
+
+    def test_path(self):
+        seed = self.graph.vertex.create('test')
+        other = self.graph.vertex.create('test')
+        link = seed.link('test', other)
+        query = gremlin.query(
+            gremlin.incomings,
+            gremlin.start,
+            gremlin.path(2),
+            gremlin.each(gremlin.get),
+            gremlin.value,
+        )
+        path = next(query(self.graph, other))
+        self.assertEqual(path, [seed, link, other])
 
     def test_incomings_three(self):
         seed = self.graph.vertex.create('test')

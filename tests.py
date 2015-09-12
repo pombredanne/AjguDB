@@ -150,9 +150,9 @@ class DatabaseTestCase(TestCase):
         v = self.graph.vertex.get_or_create('test')
         self.assertIsNotNone(v)
 
-    def test_get_or_create_two(self):
-        v1 = self.graph.vertex.get_or_create(label='test')
-        v2 = self.graph.vertex.get_or_create(label='test')
+    def test_get_or_create_twice(self):
+        v1 = self.graph.vertex.get_or_create(label='test', key='value')
+        v2 = self.graph.vertex.get_or_create(label='test', key='value')
         self.assertEqual(v1, v2)
 
     def test_create_and_get_vertex(self):

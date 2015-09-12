@@ -131,7 +131,8 @@ class Documents(object):
             return list()
 
         elif code == -1:
-            manager.next()
+            if manager.next() == WT_NOT_FOUND:
+                return list()
 
         def iterator():
             while True:
@@ -205,7 +206,8 @@ class Documents(object):
                 if code == WT_NOT_FOUND:
                     return
                 if code == -1:
-                    cursor.next()
+                    if cursor.next() == WT_NOT_FOUND:
+                        return
                 while True:
                     other, key = cursor.get_key()
                     value = cursor.get_value()
@@ -227,10 +229,11 @@ class Documents(object):
 
         if code == WT_NOT_FOUND:
             manager.reset()
-            return
+            return list()
 
         if code == -1:
-            manager.next()
+            if manager.next() == WT_NOT_FOUND:
+                return list()
 
         def iterator():
             while True:
@@ -319,7 +322,8 @@ class EdgeLinks(object):
             return list()
 
         if code == -1:
-            manager.next()
+            if manager.next() == WT_NOT_FOUND:
+                return list()
 
         def iterator():
             while True:
@@ -346,7 +350,8 @@ class EdgeLinks(object):
             return list()
 
         if code == -1:
-            manager.next()
+            if manager.next() == WT_NOT_FOUND:
+                return list()
 
         def iterator():
             while True:
@@ -375,7 +380,8 @@ class EdgeLinks(object):
             return
 
         if code == -1:
-            manager.next()
+            if manager.next() == WT_NOT_FOUND:
+                return list()
 
         def iterator():
             while True:

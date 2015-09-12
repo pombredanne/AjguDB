@@ -50,7 +50,7 @@ def select(**kwargs):
         for item in iterator:
             ok = True
             for key, value in kwargs.items():
-                if item.value == VERTEX:
+                if item.kind == VERTEX:
                     other = graphdb._storage.vertices.tuple(item.value, key)
                 else:
                     other = graphdb._storage.edges.tuple(item.value, key)

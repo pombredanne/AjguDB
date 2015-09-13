@@ -10,17 +10,16 @@ def read(fname):
 
 setup(
     name='AjguDB',
-    version='0.5',
+    version='0.6',
     author='Amirouche Boubekki',
     author_email='amirouche@hypermove.net',
     url='https://github.com/amirouche/ajgudb',
-    description='Graph Database for everyday',
+    description='Explore you connected data',
     long_description=read('README.rst'),
     packages=find_packages(),
     zip_safe=False,
-    license='LGPLv2.1 or later',
+    license='GPLv2 or GPLv3',
     install_requires=[
-        'plyvel',
         'msgpack-python',
     ],
     classifiers=[

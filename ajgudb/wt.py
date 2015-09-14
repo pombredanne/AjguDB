@@ -83,7 +83,8 @@ class WiredTigerStorage(object):
                 if code == WT_NOT_FOUND:
                     return
                 if code == -1:
-                    cursor.next()
+                    if cursor.next() == WT_NOT_FOUND:
+                        return
                 while True:
                     other, key = cursor.get_key()
                     value = cursor.get_value()
@@ -130,7 +131,8 @@ class WiredTigerStorage(object):
             if code == WT_NOT_FOUND:
                 return
             if code == -1:
-                cursor.next()
+                if cursor.next() == WT_NOT_FOUND:
+                    return
 
             while True:
                 key, value, uid = cursor.get_key()

@@ -10,17 +10,69 @@
 - transaction-less
 - LGPLv2.1 or later
 
-AjguDB wants to be a fast graph database for python to help your during your
-exploration.
+AjguDB wants to be a easy to use graph database for python to help during
+graph exploration of data that does not fit in RAM and requires a graph API.
+
+It support three backends LevelDB, WiredTiger and Oracle Berkeley Database.
+
+AjguDB index all fields for the better and the worst. The better
+being is that it's easy to use API. Make sure to only import the data you need
+and use something else to store fields you don't need to be indexed.
+
+You might hit issues regarding encoding, there is I think no way to solve them
+once on for all without moving to Python 3. 
+
+Roadmap
+=======
+
+The  0.5.x will remain the stable release for the time being. Work on the
+`develop branch <https://github.com/amirouche/AjguDB/tree/develop>`_ will
+become 0.7 when its time comes.
+
+
+0.7
+---
+
+- Python 3: missing wiredtiger bindings that works with python 3. my
+  `wiredtiger-ffi <https://github.com/amirouche/python-wiredtiger-ffi>`_ is buggy
+
+- Improve performance. ajgudb doesn't compete at all against sqlite 
+  while loading stackexchange's superuser dump (5G), neither does it handle
+  well querying the data, probably because of "index-all-the-thing" feature.
+  The ``TupleSpace`` design is a nice but it's not the only tool required to build
+  a graph database that includes many kinds of data.
+
+- wiredtiger backend
+
+  Prelimanry benchmarks show that leveldb and bsddb does not perform as good on
+  batch insert 5G (superuser) and 50G (wikidata) and official benchmarks
+  says that it performs better on random read/write. So the plan is to move to
+  to wiredtiger only.
+
+
+Other stuff
+-----------
+  
+- Add support for wiredtiger transactions. Transactions can improve performance.
+- Add full-text search indices.
+- Add geographic indices.
+- Add Cassandra backend.
+    
 
 ChangeLog
 =========
 
+0.5.1
+-----
+
+- ajgudb: when a vertex is deleted its edges must also be deleted
+- wiredtiger: when the table is empty avoid to crash
+- gremlin: add ``path(number_of_steps)`` step wich returns the current node
+  and its ancestors.
+
+
 0.5
 ---
-
-There is probably issues regarding encoding. I think there is no way to make
-the situations better without moving to python3.
 
 - ajgudb
 
@@ -30,8 +82,8 @@ the situations better without moving to python3.
 
 - gremlin:
 
-  - add `keys` to retrieve several keys at the same time
-  - use lazy `itertools.imap` instead of the gready python2's `map`
+  - add ``keys`` to retrieve several keys at the same time
+  - use lazy ``itertools.imap`` instead of the gready python2's ``map``
 
 
 0.4.2
@@ -190,6 +242,11 @@ Here are the provided steps:
 - ``mean`` compute the mean value.
 - ``group_count`` Return a counter made of the values from the previous step
 - ``scatter`` unroll the content of the iterator
+- ``back`` retrieve the parent element
+- ``path(number_of_steps)`` return ``number_of_steps`` of previous elements
+  starting with the current element. The returned object is a list of size
+  ``number_of_steps + 1`` formed of the elements of the path that leads to the
+  current element included. It allows to do ``join`` operations.
 
 They are a few steps missing compared to gremlin reference implementation.
 That said, you can easily implement them yourself:
@@ -198,7 +255,6 @@ Missing steps with comments:
 
 - both, bothE, bothV => use incomings, outgoings, start and end)
 - gather, groupBy => ???
-- group_count with side effect => ???
 - memoize => ???
 - cap => ???
 - select => ???
@@ -218,4 +274,4 @@ Missing steps with comments:
 Author
 ======
 
-`Say hi! <amirouche@hypermove.net>`_
+`Say héllo! <amirouche@hypermove.net>`_

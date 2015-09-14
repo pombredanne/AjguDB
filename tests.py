@@ -312,18 +312,19 @@ class BaseTestGremlin(object):
         self.assertEqual(query(other), [seed])
 
     def test_path(self):
-        seed = self.graph.vertex.create('test')
-        other = self.graph.vertex.create('test')
-        link = seed.link('test', other)
-        query = gremlin.query(
-            gremlin.incomings,
-            gremlin.start,
-            gremlin.path(2),
-            gremlin.each(gremlin.get),
-            gremlin.value,
+        seed = self.graph.vertex()
+        other = self.graph.vertex()
+        link = seed.link(other)
+        query = self.graph.query(
+            incomings,
+            start,
+            path(2),
+            each(get),
+            value,
         )
-        path = next(query(self.graph, other))
-        self.assertEqual(path, [seed, link, other])
+        out = query(other)
+        out = out[0]
+        self.assertEqual(out, [seed, link, other])
 
     def test_incomings_three(self):
         seed = self.graph.vertex()

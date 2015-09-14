@@ -21,7 +21,7 @@ from collections import Counter
 from itertools import imap
 
 from .ajgudb import Base
-from .utils import AjguDBException
+
 
 GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'step'))
 
@@ -236,6 +236,19 @@ def step(name):
 
 def back(graphdb, iterator):
     return imap(lambda x: x.parent, iterator)
+
+
+def path(steps):
+
+    def path_reducer(previous, _):
+        previous.append(previous[-1].parent)
+        return previous
+
+    def step(graphdb, iterator):
+        for item in iterator:
+            yield reduce(path_reducer, range(steps), [item])
+
+    return step
 
 
 def mean(graphdb, iterator):

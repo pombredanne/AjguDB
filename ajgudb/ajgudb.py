@@ -74,6 +74,13 @@ class Vertex(Base):
         self._graphdb._tuples.add(uid, _meta_type='edge', **properties)
         return Edge(self._graphdb, uid, properties)
 
+    def delete(self):
+        for incoming in self.incomings():
+            incoming.delete()
+        for outgoing in self.outgoings():
+            outgoing.delete()
+        super(Vertex, self).delete()
+
 
 class Edge(Base):
 
@@ -101,9 +108,6 @@ class Edge(Base):
             **self
         )
         return self
-
-    def delete(self):
-        self._graphdb._tuples.delete(self.uid)
 
 
 class AjguDB(object):

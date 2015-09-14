@@ -30,7 +30,7 @@ class WiredTigerStorage(object):
     """Generic database"""
 
     def __init__(self, path):
-        self.wiredtiger = wiredtiger_open(path, 'create')
+        self.wiredtiger = wiredtiger_open(path, 'create,cache_size=6GB')
         self.session = self.wiredtiger.open_session()
         self.session.create(
             'table:tuples',

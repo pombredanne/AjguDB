@@ -226,6 +226,23 @@ class BaseTestGraphDatabase(object):
         end = self.graph.get(end.uid)
         self.assertEquals(len(list(end.incomings())), 0)
 
+    def test_delete_vertex_with_edges(self):
+        # vertices
+        start = self.graph.vertex(label='start')
+        end = self.graph.vertex(label='end')
+        # first edge
+        edge = start.link(end)
+
+        # delete edge
+        edge = self.graph.get(edge.uid)
+        start.delete()
+
+        self.assertRaises(AjguDBException, self.graph.get, edge.uid)
+
+        # check end is update to date
+        end = self.graph.get(end.uid)
+        self.assertEquals(len(list(end.incomings())), 0)
+
 
 class TestBSDDDBGraphDatabase(BaseTestGraphDatabase, DatabaseTestCase):
 

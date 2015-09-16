@@ -31,6 +31,7 @@ GremlinResult = namedtuple('GremlinResult', ('value', 'parent', 'kind'))
 
 def query(*steps):
     """Gremlin pipeline builder and executor"""
+
     def composed(graphdb, iterator=None):
         if isinstance(iterator, Vertex):
             iterator = [GremlinResult(iterator.uid, None, VERTEX)]
@@ -41,36 +42,15 @@ def query(*steps):
         for step in steps:
             iterator = step(graphdb, iterator)
         return iterator
+
     return composed
 
 
-def select(**kwargs):
-    """Iterator that *select* elements based on key value"""
-    def step(graphdb, iterator):
-        for item in iterator:
-            ok = True
-            for key, value in kwargs.items():
-                if item.kind == VERTEX:
-                    other = graphdb._storage.vertices.tuple(item.value, key)
-                else:
-                    other = graphdb._storage.edges.tuple(item.value, key)
-                if other != value:
-                    ok = False
-                    break
-            if ok:
-                yield item
-    return step
-
-
-def vertices(label=None):
+def vertices(label=''):
     def step(graphdb, iterator):
         """Iterator over all vertices"""
-        if label:
-            for uid in graphdb._storage.vertices.identifiers(label):
-                yield GremlinResult(uid, None, VERTEX)
-        else:
-            for uid in graphdb._storage.vertices.all():
-                yield GremlinResult(uid, None, VERTEX)
+        for uid in graphdb._storage.vertices.identifiers(label):
+            yield GremlinResult(uid, None, VERTEX)
     return step
 
 
@@ -83,6 +63,23 @@ def edges(label=None):
         else:
             for uid in graphdb._storage.edges.all():
                 yield GremlinResult(uid, None, VERTEX)
+    return step
+
+
+def where(**kwargs):
+    """Iterator that selects elements that match the `kwargs` specification"""
+
+    def step(graphdb, iterator):
+        for item in iterator:
+            for key, value in kwargs.items():
+                if item.kind == VERTEX:
+                    _, properties = graphdb._storage.vertices.get(item.value)
+                else:
+                    _, _, _, properties = graphdb._storage.edges.get(item.value)
+                if properties[key] != value:
+                    break
+            else:
+                yield item
     return step
 
 
@@ -129,7 +126,7 @@ def count(graphdb, iterator):
 # edges navigation
 
 def _edges(direction, graphdb, iterator):
-    query = getattr(graphdb._storage.links, direction)
+    query = getattr(graphdb._storage.edges, direction)
     for item in iterator:
         for uid in query(item.value):
             yield GremlinResult(uid, item, EDGE)
@@ -147,15 +144,14 @@ def outgoings(graphdb, iterator):
 
 def start(graphdb, iterator):
     for item in iterator:
-        uid, _ = graphdb._storage.links.get(item.value)
-        yield GremlinResult(uid, item, VERTEX)
+        start, _, _, _ = graphdb._storage.edges.get(item.value)
+        yield GremlinResult(start, item, VERTEX)
 
 
 def end(graphdb, iterator):
     for item in iterator:
-        _, uid = graphdb._storage.links.get(item.value)
-        result = GremlinResult(uid, item, VERTEX)
-        yield result
+        _, _, end, _ = graphdb._storage.edges.get(item.value)
+        yield GremlinResult(end, item, VERTEX)
 
 
 def each(proc):
@@ -189,10 +185,13 @@ def key(name):
     def step(graphdb, iterator):
         for item in iterator:
             if item.kind == VERTEX:
-                value = graphdb._storage.vertices.tuple(item.value, name)
+                _, properties = graphdb._storage.vertices.get(item.value)
             else:
-                value = graphdb._storage.edges.tuple(item.value, name)
-            yield GremlinResult(value, item, None)
+                _, _, _, properties = graphdb._storage.edges.get(item.value)
+            try:
+                yield GremlinResult(properties[name], item, None)
+            except KeyError:
+                pass
     return step
 
 
@@ -284,13 +283,3 @@ def scatter(graphdb, iterator):
 
 
 MockBase = namedtuple('MockBase', ('uid', ))
-
-
-def link(**kwargs):
-    def step(graphdb, iterator):
-        start = graphdb.get_or_create(**kwargs)
-        for item in iterator:
-            node = MockBase(item.value)
-            start.link(node)
-        yield start
-    return step

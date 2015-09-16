@@ -15,397 +15,249 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA  02110-1301  USA
-from collections import defaultdict
 from wiredtiger import wiredtiger_open
 
 from utils import pack
 from utils import unpack
 
 
-
 WT_NOT_FOUND = -31803
 
 
-class CursorContextManager(object):
-
-    def __init__(self, session, table, cursors):
-        self._session = session
-        self._table = table
-        self._cursors = cursors
-        self.cursor()
-
-    def cursor(self):
-        if self._cursors:
-            cursor = self._cursors.pop()
-        else:
-            cursor = self._session.open_cursor(self._table)
-        self._cursor = cursor
-
-        # bind methods
-        self.search = cursor.search
-        self.search_near = cursor.search_near
-        self.set_key = cursor.set_key
-        self.set_value = cursor.set_value
-        self.get_key = cursor.get_key
-        self.get_value = cursor.get_value
-        self.next = cursor.next
-        self.insert = cursor.insert
-
-    def reset(self):
-        if self._cursor:
-            self._cursor.reset()
-            self._cursors.append(self._cursor)
-            self._cursor = None
-        # else already reset.
-
-    def __enter__(self):
-        return self._cursor
-
-    def __exit__(self, exc, val, tb):
-        self.reset()
-        return False
-
-
-class Table(object):
-
-    def __init__(self, session, name, table_format, index_format):
-        self._session = session
-        self._table = 'table:' + name
-        self._index = 'table:' + name + ' -index'
-        self._cursors = list()
-        self._indices = list()
-
-        session.create(self._table, table_format)
-        session.create(self._index, index_format)
-
-    def cursor(self):
-        return CursorContextManager(self._session, self._table, self._cursors)
-
-    def index(self):
-        return CursorContextManager(self._session, self._index, self._indices)
-
-
-class Documents(object):
-    """Stores documents with label as tuples with fine grained indices."""
-
-    def __init__(self, session, name):
-        self._session = session
-        # labels
-        self._labels = Table(
-            session,
-            'labels-' + name,
-            'key_format=r,value_format=S',
-            'key_format=SQ,value_format=S'
-        )
-        self._labels.append = session.open_cursor(
-            'table:labels-' + name,
-            None,
-            'append'
-        )
-        # tuples
-        self._tuples = Table(
-            session,
-            'tuples-' + name,
-            'key_format=QS,value_format=u',
-            'key_format=SuQ,value_format=S'
-        )
-        # FIXME: should also be stored in database
-        self._indices = defaultdict(list)
-
-    def index(self, label, key):
-        self._indices[label].append(key)
-
-    def label(self, uid):
-        with self._labels.cursor() as cursor:
-            cursor.set_key(uid)
-            if cursor.search() != WT_NOT_FOUND:
-                value = cursor.get_value()
-                return value
-
-    def identifiers(self, label):
-        manager = self._labels.index()
-        manager.set_key(label, 0)
-        code = manager.search_near()
-        if code == WT_NOT_FOUND:
-            manager.reset()
-            return list()
-
-        elif code == -1:
-            if manager.next() == WT_NOT_FOUND:
-                return list()
-
-        def iterator():
-            while True:
-                other = manager.get_key()
-                ok = reduce(
-                    lambda previous, x: (cmp(*x) == 0) and previous,
-                    zip((label,), other),
-                    True
-                )
-                if ok:
-                    _, uid = other
-                    yield uid
-                    if manager.next() == WT_NOT_FOUND:
-                        manager.reset()
-                        break
-                else:
-                    manager.reset()
-                    break
-        return list(iterator())
-
-    def add(self, label, properties=None):
-        if not properties:
-            properties = dict()
-        # add label
-        self._labels.append.set_value(label)
-        self._labels.append.insert()
-        uid = self._labels.append.get_key()
-        # index label
-        with self._labels.index() as cursor:
-            cursor.set_key(label, uid)
-            cursor.set_value('')
-            cursor.insert()
-
-        # add properties
-        with self._tuples.cursor() as cursor:
-            for key, value in properties.items():
-                cursor.set_key(uid, key)
-                cursor.set_value(pack(value))
-                cursor.insert()
-        # update index
-        try:
-            keys = self._indices[label]
-        except KeyError:
-            pass
-        else:
-            with self._tuples.index() as cursor:
-                for key in keys:
-                    try:
-                        value = properties[key]
-                    except KeyError:
-                        pass
-                    else:
-                        cursor.set_key(key, pack(value), uid)
-                        cursor.set_value('')
-                        cursor.insert()
-        return uid
-
-    def tuple(self, uid, key):
-        with self._tuples.cursor() as cursor:
-            cursor.set_key(uid, key)
-            if cursor.search() != WT_NOT_FOUND:
-                value = cursor.get_value()
-                value = unpack(value)
-                return value
-
-    def tuples(self, uid):
-        def __get():
-            with self._tuples.cursor() as cursor:
-                cursor.set_key(uid, '')
-                code = cursor.search_near()
-                if code == WT_NOT_FOUND:
-                    return
-                if code == -1:
-                    if cursor.next() == WT_NOT_FOUND:
-                        return
-                while True:
-                    other, key = cursor.get_key()
-                    value = cursor.get_value()
-                    if other == uid:
-                        value = unpack(value)
-                        yield key, value
-                        if cursor.next() == WT_NOT_FOUND:
-                            break
-                    else:
-                        break
-        tuples = dict(__get())
-        return tuples
-
-    def query(self, key, value=''):
-        manager = self._tuples.index()
-        match = (key, value) if value else (key,)
-        manager.set_key(key, pack(value), 0)
-        code = manager.search_near()
-
-        if code == WT_NOT_FOUND:
-            manager.reset()
-            return list()
-
-        if code == -1:
-            if manager.next() == WT_NOT_FOUND:
-                return list()
-
-        def iterator():
-            while True:
-                key, value, uid = manager.get_key()
-                value = unpack(value)
-                other = (key, value)
-                ok = reduce(
-                    lambda previous, x: (cmp(*x) == 0) and previous,
-                    zip(match, other),
-                    True
-                )
-                if ok:
-                    yield value, uid
-                    if manager.next() == WT_NOT_FOUND:
-                        manager.reset()
-                        break
-                else:
-                    manager.reset()
-                    break
-
-        return list(iterator())
-
-
-class EdgeLinks(object):
-    """Store edges links in an efficient way"""
+class Vertices(object):
 
     def __init__(self, session):
         self._session = session
-        # labels
+
+        # storage table
         session.create(
-            'table:edge-links',
-            ''.join(
-                'key_format=Q,value_format=QQ,'
-                'columns=(id,start,end)',
-            )
+            'table:vertices',
+            'key_format=r,value_format=SS,columns=(id,label,data)'
         )
+        # cursor for identifier->vertex query
+        self._cursor = session.open_cursor('table:vertices')
+        # append cursor
+        self._append = session.open_cursor(
+            'table:vertices',
+            None,
+            'append'
+        )
+        # index for label->vertex query
         session.create(
-            'index:edge-links:outgoings',
-            'columns=(start,id)'
+            'index:vertices:labels',
+            'columns=(label,id)'
         )
-        session.create(
-            'index:edge-links:incomings',
-            'columns=(end,id)'
-        )
+        self._index = session.open_cursor('index:vertices:labels')
 
-        self._outgoings = list()
-        self._incomings = list()
-        self._links = list()
+    def identifiers(self, label):
+        """Look vertices with the given `label`"""
+        self._index.set_key(label, 0)
 
-    def add(self, uid, start, end):
-        manager = CursorContextManager(
-            self._session,
-            'table:edge-links',
-            self._links
-        )
-        manager.set_key(uid)
-        manager.set_value(start, end)
-        manager.insert()
-        manager.reset()
-
-    def get(self, uid):
-        manager = CursorContextManager(
-            self._session,
-            'table:edge-links',
-            self._links
-        )
-        manager.set_key(uid)
-        if manager.search() == WT_NOT_FOUND:
-            return None, None
-        else:
-            return manager.get_value()
-        manager.insert()
-        manager.reset()
-
-    def all(self):
-        manager = CursorContextManager(
-            self._session,
-            'table:edge-links:outgoings',
-            self._links
-        )
-        manager._cursor.reset()
-        code = manager.next()
-
+        # lookup the label
+        code = self._index.search_near()
         if code == WT_NOT_FOUND:
-            manager.reset()
+            self._index.reset()
             return list()
-
-        if code == -1:
-            if manager.next() == WT_NOT_FOUND:
+        elif code == -1:
+            if self._index.next() == WT_NOT_FOUND:
                 return list()
 
+        # iterate over the results and return it as a list
         def iterator():
             while True:
-                uid = manager.get_key()
-                start, end = manager.get_value()
-                yield uid, start, end
-                if manager.next() == WT_NOT_FOUND:
-                    manager.reset()
+                other, uid = self._index.get_key()
+                if other == label:
+                    yield uid
+                    if self._index.next() == WT_NOT_FOUND:
+                        self._index.reset()
+                        break
+                else:
+                    self._index.reset()
+                    break
+
+        return list(iterator())
+
+    def add(self, label, properties=None):
+        """Add vertex with the given `label` and `properties`
+
+        `properties` are packed using msgpack"""
+        properties = properties if properties else dict()
+
+        # append vertex to the list of vertices
+        # and retrieve its assigned identifier
+        self._append.set_value(label, pack(properties))
+        self._append.insert()
+        uid = self._append.get_key()
+        return uid
+
+    def get(self, uid):
+        """Look for a vertices with the given identifier `uid`"""
+        # lookup the uid
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            return None, None
+        else:
+            # uid found, return label and properties
+            label, data = self._cursor.get_value()
+            return label, unpack(data)
+
+
+class Edges(object):
+
+    def __init__(self, session):
+        self._session = session
+
+        # storage table
+        session.create(
+            'table:edges',
+            'key_format=r,value_format=QSQS,columns=(id,start,label,end,data)'
+        )
+        # cursor for identifier->edge query
+        self._cursor = session.open_cursor('table:edges')
+        # append cursor
+        self._append = session.open_cursor(
+            'table:edges',
+            None,
+            'append'
+        )
+        # cursor for label->edge query
+        session.create(
+            'index:edges:labels',
+            'columns=(label,id)'
+        )
+        self._index = session.open_cursor('index:edges:labels')
+
+        # cursor for `outgoing vertex`->edge
+        session.create(
+            'index:edges:outgoings',
+            'columns=(start,id)'
+        )
+        self._outgoings = session.open_cursor('index:edges:outgoings')
+
+        # cursor for `incomings vertex`->edge
+        session.create(
+            'index:edges:incomings',
+            'columns=(end,id)'
+        )
+        self._incomings = session.open_cursor('index:edges:incomings')
+
+    def identifiers(self, label):
+        """Look for edges which have the given `label`"""
+        # lookup label
+        # XXX: same code as `Vertices`
+        self._index.set_key(label)
+        code = self._index.search_near()
+        if code == WT_NOT_FOUND:
+            self._index.reset()
+            return list()
+        elif code == -1:
+            if self._index.next() == WT_NOT_FOUND:
+                return list()
+
+        # iterate over the results and return it as a list
+        def iterator():
+            while True:
+                other, uid = self._index.get_key()
+                if other == label:
+                    yield uid
+                    if self._index.next() == WT_NOT_FOUND:
+                        self._index.reset()
+                        break
+                else:
+                    self._index.reset()
+                    break
+
+        return list(iterator())
+
+    def incomings(self, end):
+        """Look for edges which end at the vertex with the given `uid`"""
+        # lookup vertex
+        # XXX: same code as `Vertices`
+        self._incomings.set_key(end, 0)
+        code = self._incomings.search_near()
+        if code == WT_NOT_FOUND:
+            self._incomings.reset()
+            return list()
+        elif code == -1:
+            if self._incomings.next() == WT_NOT_FOUND:
+                return list()
+
+        # iterate over the results and return it as a list
+        def iterator():
+            while True:
+                other, uid = self._incomings.get_key()
+                if other == end:
+                    yield uid
+                    if self._incomings.next() == WT_NOT_FOUND:
+                        self._incomings.reset()
+                        break
+                else:
+                    self._incomings.reset()
                     break
 
         return list(iterator())
 
     def outgoings(self, start):
-        manager = CursorContextManager(
-            self._session,
-            'index:edge-links:outgoings',
-            self._outgoings
-        )
-        manager.set_key(start, 0)
-        code = manager.search_near()
-
+        """Look for edges which start at the vertex with the given `uid`"""
+        # lookup vertex
+        # XXX: same code as `Vertices`
+        self._outgoings.set_key(start, 0)
+        code = self._outgoings.search_near()
         if code == WT_NOT_FOUND:
-            manager.reset()
+            self._outgoings.reset()
             return list()
-
-        if code == -1:
-            if manager.next() == WT_NOT_FOUND:
+        elif code == -1:
+            if self._outgoings.next() == WT_NOT_FOUND:
                 return list()
 
+        # iterate over the results and return it as a list
         def iterator():
             while True:
-                other, uid = manager.get_key()
+                other, uid = self._outgoings.get_key()
                 if other == start:
                     yield uid
-                    if manager.next() == WT_NOT_FOUND:
-                        manager.reset()
+                    if self._outgoings.next() == WT_NOT_FOUND:
+                        self._outgoings.reset()
                         break
                 else:
-                    manager.reset()
+                    self._outgoings.reset()
                     break
         return list(iterator())
 
-    def incomings(self, end):
-        manager = CursorContextManager(
-            self._session,
-            'index:edge-links:incomings',
-            self._incomings
-        )
-        manager.set_key(end, 0)
-        code = manager.search_near()
-
-        if code == WT_NOT_FOUND:
-            manager.reset()
-            return
-
-        if code == -1:
-            if manager.next() == WT_NOT_FOUND:
-                return list()
-
-        def iterator():
-            while True:
-                other, uid = manager.get_key()
-                if other == end:
-                    yield uid
-                    if manager.next() == WT_NOT_FOUND:
-                        manager.reset()
-                        break
-                else:
-                    manager.reset()
-                    break
         return list(iterator())
+
+    def add(self, start, label, end, properties=None):
+        """Add edge with and  return its unique identifier
+
+        `start`, and `end` must be respectively vertices identifiers.
+        `label` must be a string and `properties` a dictionary"""
+        # append edge and return identifier
+        properties = properties if properties else dict()
+        self._append.set_value(start, label, end, pack(properties))
+        self._append.insert()
+        uid = self._append.get_key()
+        return uid
+
+    def get(self, uid):
+        """Retrieve the edge with the given `uid`"""
+        # lookup `uid`
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            return None, None, None, None
+        else:
+            # return edge
+            start, label, end, data = self._cursor.get_value()
+            return start, label, end, unpack(data)
 
 
 class Storage(object):
     """Generic database"""
 
     def __init__(self, path):
-        self._wiredtiger = wiredtiger_open(path, 'create')
+        self._wiredtiger = wiredtiger_open(path, 'create,cache_size=10GB')
         self._session = self._wiredtiger.open_session()
-        self.edges = Documents(self._session, 'edges')
-        self.vertices = Documents(self._session, 'vertices')
-        self.links = EdgeLinks(self._session)
+        self.edges = Edges(self._session)
+        self.vertices = Vertices(self._session)
 
     def close(self):
         self._wiredtiger.close()

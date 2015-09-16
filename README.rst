@@ -16,6 +16,20 @@ python.
 ChangeLog
 =========
 
+0.7
+---
+
+
+- gremlin: `select` is renamed `where` because it match the SQL terminology.
+  SQL's `FROM` is `vertices` and `edges` steps.
+- storage: only backend database is supported now, it's wiredtiger.
+- storage: rework the backend to use less write and similar read operations
+  count.
+- storage: Now edges and vertices are stores in differents table this might
+  also lead to performance improvements regarding querying. Moreover elements
+  identifiers are now computed by the backend storage, wiredtiger.
+
+
 0.5
 ---
 

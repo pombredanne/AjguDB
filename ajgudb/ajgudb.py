@@ -40,6 +40,8 @@ class Base(dict):
 
 class Vertex(Base):
 
+    __slots__ = ('_graphdb', 'uid', 'label')
+
     def __init__(self, graphdb, uid, label, properties):
         self._graphdb = graphdb
         self.uid = uid
@@ -47,18 +49,16 @@ class Vertex(Base):
         super(Vertex, self).__init__(properties)
 
     def incomings(self):
-        edges = self._graphdb._storage.links.incomings(self.uid)
-        # this method must be with care, since it fully consume
-        # the generator to avoid cursor leak
-        edges = map(self._graphdb.edge.get, edges)
-        return edges
+        edges = self._graphdb._storage.edges.incomings(self.uid)
+        # XXX: this method must be with care, since it fully consume
+        # the generator (to avoid cursor leak).
+        return map(self._graphdb.edge.get, edges)
 
     def outgoings(self):
-        edges = self._graphdb._storage.links.outgoings(self.uid)
+        edges = self._graphdb._storage.edges.outgoings(self.uid)
         # this method must be with care, since it fully consume
-        # the generator to avoid cursor leak
-        edges = map(self._graphdb.edge.get, edges)
-        return edges
+        # the generator (to avoid cursor leak).
+        return map(self._graphdb.edge.get, edges)
 
     def save(self):
         raise NotImplementedError
@@ -67,34 +67,31 @@ class Vertex(Base):
         raise NotImplementedError
 
     def link(self, label, end, **properties):
-        uid = self._graphdb._storage.edges.add(label, properties)
-        self._graphdb._storage.links.add(uid, self.uid, end.uid)
-        edge = Edge(self._graphdb, uid, self.uid, label, end.uid, properties)
-        return edge
+        uid = self._graphdb._storage.edges.add(
+            self.uid,
+            label,
+            end.uid,
+            properties
+        )
+        return Edge(self._graphdb, uid, self.uid, label, end.uid, properties)
 
 
 class Edge(Base):
+
+    __slots__ = ('_graphdb', 'uid', '_start', 'label', '_end')
 
     def __init__(self, graphdb, uid, start, label, end, properties):
         self._graphdb = graphdb
         self.uid = uid
         self._start = start
-        self.__start = None
         self._end = end
-        self.__end = None
         super(Edge, self).__init__(properties)
 
     def start(self):
-        if self.__start:
-            return self.__start
-        self.__start = self._graphdb.vertex.get(self._start)
-        return self.__start
+        return self._graphdb.vertex.get(self._start)
 
     def end(self):
-        if self.__end:
-            return self.__end
-        self.__end = self._graphdb.vertex.get(self._end)
-        return self.__end
+        return self._graphdb.vertex.get(self._end)
 
     def save(self):
         raise NotImplementedError
@@ -113,15 +110,14 @@ class VertexManager(object):
         return Vertex(self._graphdb, uid, label, properties)
 
     def get(self, uid):
-        properties = self._graphdb._storage.vertices.tuples(uid)
-        label = self._graphdb._storage.vertices.label(uid)
+        label, properties = self._graphdb._storage.vertices.get(uid)
         return Vertex(self._graphdb, uid, label, properties)
 
     def one(self, label, **properties):
         import gremlin
         query = gremlin.query(
             gremlin.vertices(label),
-            gremlin.select(**properties),
+            gremlin.where(**properties),
             gremlin.limit(1),
             gremlin.get
         )
@@ -150,16 +146,14 @@ class EdgeManager(object):
         self._graphdb = graphdb
 
     def get(self, uid):
-        properties = self._graphdb._storage.edges.tuples(uid)
-        label = self._graphdb._storage.edges.label(uid)
-        start, end = self._graphdb._storage.links.get(uid)
+        start, label, end, properties = self._graphdb._storage.edges.get(uid)
         return Edge(self._graphdb, uid, start, label, end, properties)
 
     def one(self, label, **properties):
         import gremlin
         query = gremlin.query(
             gremlin.edges(label),
-            gremlin.select(**properties),
+            gremlin.where(**properties),
             gremlin.limit(1),
             gremlin.get
         )

@@ -3,124 +3,9 @@ import os
 from shutil import rmtree
 from unittest import TestCase
 
-from wiredtiger import wiredtiger_open
-
 from ajgudb import AjguDB
 
-from ajgudb.storage import Documents
-from ajgudb.storage import EdgeLinks
 from ajgudb import gremlin
-
-
-class TestDocuments(TestCase):
-
-    def setUp(self):
-        try:
-            rmtree('/tmp/ajgudb')
-        except OSError:
-            pass
-        os.makedirs('/tmp/ajgudb')
-        self.wiredtiger = wiredtiger_open('/tmp/ajgudb', 'create')
-        session = self.wiredtiger.open_session()
-        self.documents = Documents(session, 'test')
-
-    def tearDown(self):
-        self.wiredtiger.close()
-        rmtree('/tmp/ajgudb')
-
-    def test_label_empty(self):
-        self.assertIsNone(self.documents.label(123))
-
-    def test_tuples_empty(self):
-        tuples = self.documents.tuples(456)
-        self.assertEqual(tuples, dict())
-
-    def test_add(self):
-        uid = self.documents.add('testing', dict(key='value'))
-        self.assertEqual(self.documents.tuple(uid, 'key'), 'value')
-        label = self.documents.label(uid)
-        self.assertEqual(label, 'testing')
-        tuples = self.documents.tuples(uid)
-        self.assertEqual(tuples, dict(key='value'))
-
-    def test_identifiers(self):
-        self.documents.add('testing')
-        self.documents.add('testing')
-        self.documents.add('another')
-        uids = list(self.documents.identifiers('testing'))
-        self.assertEqual(uids, [1, 2])
-
-    def test_identifiers_empty(self):
-        self.documents.add('testing')
-        self.documents.add('testing')
-        self.documents.add('another')
-        uids = list(self.documents.identifiers('empty'))
-        self.assertEqual(uids, [])
-
-    def test_query_one(self):
-        self.documents.index('testing', 'key')
-        self.documents.add('testing', dict(key='v1'))
-        self.documents.add('another', dict(key='v2'))
-        self.documents.add('foobar', dict(spam='egg'))
-
-        value, uid = self.documents.query('key')[0]
-        self.assertAlmostEqual(value, 'v1')
-        self.assertAlmostEqual(uid, 1)
-
-    def test_query_all(self):
-        self.documents.index('testing', 'key')
-        self.documents.add('testing', dict(key='v1'))
-        self.documents.add('testing', dict(key='v2'))
-        self.documents.add('foobar', dict(spam='egg'))
-
-        values = list(self.documents.query('key'))
-        self.assertAlmostEqual(values, [('v1', 1), ('v2', 2)])
-        self.assertEqual(len(self.documents._tuples._indices), 1)
-
-
-class TestEdgeLinks(TestCase):
-
-    def setUp(self):
-        try:
-            rmtree('/tmp/ajgudb')
-        except OSError:
-            pass
-        os.makedirs('/tmp/ajgudb')
-        self.wiredtiger = wiredtiger_open('/tmp/ajgudb', 'create')
-        session = self.wiredtiger.open_session()
-        self.edge_links = EdgeLinks(session)
-
-    def tearDown(self):
-        self.wiredtiger.close()
-        rmtree('/tmp/ajgudb')
-
-    def test_add(self):
-        self.edge_links.add(0, 0, 11)
-        self.edge_links.add(1, 0, 12)
-        self.edge_links.add(2, 0, 13)
-        self.edge_links.add(3, 0, 14)
-        count = len(list(self.edge_links.all()))
-        self.assertEqual(count, 4)
-
-    def test_outgoings(self):
-        self.edge_links.add(0, 1, 14)
-        self.edge_links.add(1, 12, 11)
-        self.edge_links.add(2, 12, 12)
-        self.edge_links.add(3, 12, 13)
-        self.edge_links.add(4, 12, 14)
-        self.edge_links.add(5, 32, 14)
-        end = self.edge_links.outgoings(12)[0]
-        self.assertEqual(end, 1)
-
-    def test_incomings(self):
-        self.edge_links.add(1, 1, 14)
-        self.edge_links.add(2, 12, 11)
-        self.edge_links.add(3, 12, 12)
-        self.edge_links.add(4, 12, 13)
-        self.edge_links.add(5, 12, 14)
-        self.edge_links.add(6, 32, 14)
-        start = self.edge_links.incomings(14)[0]
-        self.assertEqual(start, 1)
 
 
 class DatabaseTestCase(TestCase):
@@ -204,12 +89,12 @@ class TestGremlin(TestCase):
         self.graph.close()
         rmtree('/tmp/ajgudb')
 
-    def test_select(self):
+    def test_where(self):
         seed = self.graph.vertex.create('seed')
         seed.link('test', self.graph.vertex.create('one'), ok=True)
         seed.link('test', self.graph.vertex.create('two'), ok=True)
         seed.link('test', self.graph.vertex.create('one'), ok=False)
-        query = gremlin.query(gremlin.outgoings, gremlin.select(ok=True))
+        query = gremlin.query(gremlin.outgoings, gremlin.where(ok=True))
         count = len(list(query(self.graph, seed)))
         self.assertEqual(count, 2)
 
@@ -290,10 +175,11 @@ class TestGremlin(TestCase):
         seed.link('test', self.graph.vertex.create('test', value=1))
 
         query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.value)
+        # the order is not guaranteed..
         self.assertEqual(set(query(self.graph, seed)), set([5, 4, 1]))
 
         query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.sort(), gremlin.value)
-        self.assertEqual(query(self.graph, seed), [1, 4, 5])
+        self.assertEqual(list(query(self.graph, seed)), [1, 4, 5])
 
     def test_unique(self):
         seed = self.graph.vertex.create('test')
@@ -301,4 +187,5 @@ class TestGremlin(TestCase):
         seed.link('test', self.graph.vertex.create('test', value=1))
         seed.link('test', self.graph.vertex.create('test', value=1))
         query = gremlin.query(gremlin.outgoings, gremlin.end, gremlin.key('value'), gremlin.unique, gremlin.value)
-        self.assertEqual(query(self.graph, seed), [1])
+        results = list(query(self.graph, seed))
+        self.assertEqual(results, [1])

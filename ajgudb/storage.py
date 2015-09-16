@@ -49,6 +49,14 @@ class Vertices(object):
         )
         self._index = session.open_cursor('index:vertices:labels')
 
+        # store indexed property keys
+        self._indices = list()
+        session.create(
+            'table:vertices-keys',
+            'key_format=SSQ,value_format=S'
+        )
+        self._keys = session.open_cursor('table:vertices-keys')
+
     def identifiers(self, label):
         """Look vertices with the given `label`"""
         self._index.set_key(label, 0)
@@ -77,6 +85,32 @@ class Vertices(object):
 
         return list(iterator())
 
+    def keys(self, key, value):
+        # lookup the label
+        self._keys.set_key(key, value, 0)
+        code = self._keys.search_near()
+        if code == WT_NOT_FOUND:
+            self._keys.reset()
+            return list()
+        elif code == -1:
+            if self._keys.next() == WT_NOT_FOUND:
+                return list()
+
+        # iterate over the results and return it as a list
+        def iterator():
+            while True:
+                other_key, other_value, uid = self._keys.get_key()
+                if other_key == key and other_value == value:
+                    yield uid
+                    if self._keys.next() == WT_NOT_FOUND:
+                        self._keys.reset()
+                        break
+                else:
+                    self._keys.reset()
+                    break
+
+        return list(iterator())
+
     def add(self, label, properties=None):
         """Add vertex with the given `label` and `properties`
 
@@ -88,6 +122,14 @@ class Vertices(object):
         self._append.set_value(label, pack(properties))
         self._append.insert()
         uid = self._append.get_key()
+
+        # index properties if any
+        for key in properties.keys():
+            if key in self._indices:
+                self._keys.set_key(key, properties[key], uid)
+                self._keys.set_value('')
+                self._keys.insert()
+
         return uid
 
     def get(self, uid):
@@ -140,6 +182,8 @@ class Edges(object):
             'columns=(end,id)'
         )
         self._incomings = session.open_cursor('index:edges:incomings')
+        # store indexed property keys
+        self._indices = list()
 
     def identifiers(self, label):
         """Look for edges which have the given `label`"""
@@ -165,6 +209,32 @@ class Edges(object):
                         break
                 else:
                     self._index.reset()
+                    break
+
+        return list(iterator())
+
+    def keys(self, key, value):
+        # lookup the label
+        self._keys.set_key(key, value, 0)
+        code = self._keys.search_near()
+        if code == WT_NOT_FOUND:
+            self._keys.reset()
+            return list()
+        elif code == -1:
+            if self._keys.next() == WT_NOT_FOUND:
+                return list()
+
+        # iterate over the results and return it as a list
+        def iterator():
+            while True:
+                other_key, other_value, uid = self._keys.get_key()
+                if other_key == key and other_value == value:
+                    yield uid
+                    if self._keys.next() == WT_NOT_FOUND:
+                        self._keys.reset()
+                        break
+                else:
+                    self._keys.reset()
                     break
 
         return list(iterator())
@@ -222,7 +292,6 @@ class Edges(object):
                 else:
                     self._outgoings.reset()
                     break
-        return list(iterator())
 
         return list(iterator())
 
@@ -236,6 +305,14 @@ class Edges(object):
         self._append.set_value(start, label, end, pack(properties))
         self._append.insert()
         uid = self._append.get_key()
+
+        # index properties if any
+        for key in properties.keys():
+            if key in self._indices:
+                self._keys.set_key(key, properties[key], uid)
+                self._keys.set_value('')
+                self._keys.insert()
+
         return uid
 
     def get(self, uid):

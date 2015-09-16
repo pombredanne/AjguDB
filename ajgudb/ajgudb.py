@@ -105,6 +105,9 @@ class VertexManager(object):
     def __init__(self, graphdb):
         self._graphdb = graphdb
 
+    def index(self, name):
+        self._graphdb._storage.vertices._indices.append(name)
+
     def create(self, label, **properties):
         uid = self._graphdb._storage.vertices.add(label, properties)
         return Vertex(self._graphdb, uid, label, properties)
@@ -144,6 +147,9 @@ class EdgeManager(object):
 
     def __init__(self, graphdb):
         self._graphdb = graphdb
+
+    def index(self, name):
+        self._graphdb._storage.edges._indices.append(name)
 
     def get(self, uid):
         start, label, end, properties = self._graphdb._storage.edges.get(uid)

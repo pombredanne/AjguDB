@@ -132,12 +132,30 @@ class Vertices(object):
 
         return uid
 
-    def get(self, uid):
-        """Look for a vertices with the given identifier `uid`"""
+    def delete(self, uid):
+        """Remove the vertice with the given identifier `uid`"""
         # lookup the uid
         self._cursor.set_key(uid)
         if self._cursor.search() == WT_NOT_FOUND:
-            return None, None
+            raise KeyError('Vertex not found, identifier: %s' % uid)
+        else:
+            # remove primary row
+            _, data = self._cursor.get_value()
+            properties = unpack(data)
+            self._cursor.remove()
+
+            # remove indices if any
+            for key in properties.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, properties[key], uid)
+                    self._cursor.remove()
+
+    def get(self, uid):
+        """Look for a vertice with the given identifier `uid`"""
+        # lookup the uid
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError('Vertex not found, identifier: %s' % uid)
         else:
             # uid found, return label and properties
             label, data = self._cursor.get_value()
@@ -315,12 +333,30 @@ class Edges(object):
 
         return uid
 
+    def delete(self, uid):
+        """Remove the edge with the given identifier `uid`"""
+        # lookup the uid
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError('Edge not found, identifier: %s' % uid)
+        else:
+            # remove primary row
+            _, _, _, data = self._cursor.get_value()
+            properties = unpack(data)
+            self._cursor.remove()
+
+            # remove indices if any
+            for key in properties.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, properties[key], uid)
+                    self._cursor.remove()
+
     def get(self, uid):
         """Retrieve the edge with the given `uid`"""
         # lookup `uid`
         self._cursor.set_key(uid)
         if self._cursor.search() == WT_NOT_FOUND:
-            return None, None, None, None
+            raise KeyError('Edge not found, identifier: %s' % uid)
         else:
             # return edge
             start, label, end, data = self._cursor.get_value()

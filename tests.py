@@ -99,6 +99,25 @@ class DatabaseTestCase(TestCase):
         with self.assertRaises(KeyError):
             self.graph.remove('key')
 
+    def test_delete_vertex(self):
+        start = self.graph.vertex.create('start')
+        end = self.graph.vertex.create('end')
+        start.link('edge', end)
+        start.delete()
+        self.assertEqual(len(end.incomings()), 0)
+        with self.assertRaises(KeyError):
+            self.graph.vertex.get(start.uid)
+
+    def test_delete_edge(self):
+        start = self.graph.vertex.create('start')
+        end = self.graph.vertex.create('end')
+        edge = start.link('edge', end)
+        start.delete()
+        self.assertEqual(len(start.outgoings()), 0)
+        self.assertEqual(len(end.incomings()), 0)
+        with self.assertRaises(KeyError):
+            self.graph.edge.get(edge.uid)
+
 
 class TestGremlin(TestCase):
 

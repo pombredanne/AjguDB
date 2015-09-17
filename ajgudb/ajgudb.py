@@ -63,9 +63,6 @@ class Vertex(Base):
     def save(self):
         raise NotImplementedError
 
-    def delete(self):
-        raise NotImplementedError
-
     def link(self, label, end, **properties):
         uid = self._graphdb._storage.edges.add(
             self.uid,
@@ -74,6 +71,11 @@ class Vertex(Base):
             properties
         )
         return Edge(self._graphdb, uid, self.uid, label, end.uid, properties)
+
+    def delete(self):
+        map(lambda x: x.delete(), self.incomings())
+        map(lambda x: x.delete(), self.outgoings())
+        self._graphdb._storage.vertices.delete(self.uid)
 
 
 class Edge(Base):
@@ -97,7 +99,7 @@ class Edge(Base):
         raise NotImplementedError
 
     def delete(self):
-        raise NotImplementedError
+        self._graphdb._storage.edges.delete(self.uid)
 
 
 class VertexManager(object):

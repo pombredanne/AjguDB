@@ -118,6 +118,22 @@ class DatabaseTestCase(TestCase):
         with self.assertRaises(KeyError):
             self.graph.edge.get(edge.uid)
 
+    def test_update_vertex(self):
+        start = self.graph.vertex.create('start', key='value')
+        self.assertEqual(start['key'], 'value')
+        start['key'] = 'monkey'
+        start.save()
+        self.assertEqual(start['key'], 'monkey')
+
+    def test_update_edge(self):
+        start = self.graph.vertex.create('start')
+        end = self.graph.vertex.create('end')
+        edge = start.link('link', end, key='value')
+        self.assertEqual(edge['key'], 'value')
+        edge['key'] = 'monkey'
+        edge.save()
+        self.assertEqual(edge['key'], 'monkey')
+
 
 class TestGremlin(TestCase):
 

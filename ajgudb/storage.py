@@ -132,6 +132,32 @@ class Vertices(object):
 
         return uid
 
+    def update(self, uid, properties):
+        # lookup edge
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError('Vertex not found, identifier: %s' % uid)
+        else:
+            # update properties
+            label, data = self._cursor.get_value()
+            other = unpack(data)
+
+            # remove old indices if any
+            for key in other.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, other[key], uid)
+                    self._cursor.remove()
+
+            # update
+            self._cursor.set_value(label, pack(properties))
+
+            # index properties
+            for key in properties.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, properties[key], uid)
+                    self._keys.set_value('')
+                    self._keys.insert()
+
     def delete(self, uid):
         """Remove the vertice with the given identifier `uid`"""
         # lookup the uid
@@ -350,6 +376,33 @@ class Edges(object):
                 if key in self._indices:
                     self._keys.set_key(key, properties[key], uid)
                     self._cursor.remove()
+
+    def update(self, uid, properties):
+        # lookup edge
+        self._cursor.set_key(uid)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError('Edge not found, identifier: %s' % uid)
+        else:
+            # update properties
+            start, label, end, data = self._cursor.get_value()
+            other = unpack(data)
+
+            # remove old indices if any
+            for key in other.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, other[key], uid)
+                    self._cursor.remove()
+
+            # update
+            data = pack(properties)
+            self._cursor.set_value(start, label, end, data)
+
+            # index properties
+            for key in properties.keys():
+                if key in self._indices:
+                    self._keys.set_key(key, properties[key], uid)
+                    self._keys.set_value('')
+                    self._keys.insert()
 
     def get(self, uid):
         """Retrieve the edge with the given `uid`"""

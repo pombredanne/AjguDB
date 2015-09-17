@@ -60,9 +60,6 @@ class Vertex(Base):
         # the generator (to avoid cursor leak).
         return map(self._graphdb.edge.get, edges)
 
-    def save(self):
-        raise NotImplementedError
-
     def link(self, label, end, **properties):
         uid = self._graphdb._storage.edges.add(
             self.uid,
@@ -71,6 +68,9 @@ class Vertex(Base):
             properties
         )
         return Edge(self._graphdb, uid, self.uid, label, end.uid, properties)
+
+    def save(self):
+        self._graphdb._storage.vertices.update(self.uid, self)
 
     def delete(self):
         map(lambda x: x.delete(), self.incomings())
@@ -96,7 +96,7 @@ class Edge(Base):
         return self._graphdb.vertex.get(self._end)
 
     def save(self):
-        raise NotImplementedError
+        self._graphdb._storage.edges.update(self.uid, self)
 
     def delete(self):
         self._graphdb._storage.edges.delete(self.uid)

@@ -189,5 +189,9 @@ class AjguDB(object):
         self.vertex = VertexManager(self)
         self.edge = EdgeManager(self)
 
+        self.get = self._storage.collection.get
+        self.set = self._storage.collection.set
+        self.remove = self._storage.collection.remove
+
     def close(self):
         self._storage.close()

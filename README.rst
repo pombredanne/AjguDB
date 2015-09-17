@@ -10,8 +10,8 @@
 - transaction-less
 - LGPLv2.1 or later
 
-AjguDB wants to be a fast enough graph database for exploring connected data in
-python.
+AjguDB wants to be a fast enough python graph database for exploring connected
+data in.
 
 ChangeLog
 =========
@@ -19,22 +19,20 @@ ChangeLog
 0.7
 ---
 
-
-- gremlin: `select` is renamed `where` because it match the SQL terminology.
-  SQL's `FROM` is `vertices` and `edges` steps.
-- storage: only backend database is supported now, it's wiredtiger.
+- ajgudb: you can threat ``AjguDB`` as simple key/value store via its methods
+  ``AjguDB.get(key)``, ``AjguDB.set(key, value)`` and ``AjguDB.remove(key)``
+- gremlin: ``select`` is renamed ``where`` because it match the SQL terminology.
+  SQL's ``FROM`` is ``vertices`` and ``edges`` steps.
+- **storage: only wiredtiger 2.6.1 backend storage is supported**
 - storage: rework the backend to use less write and similar read operations
   count.
-- storage: Now edges and vertices are stores in differents table this might
-  also lead to performance improvements regarding querying. Moreover elements
-  identifiers are now computed by the backend storage, wiredtiger.
+- storage: Now edges and vertices are stored in different tables this might
+  also lead to performance improvement during querying.
+- storage: elements identifiers are now computed by the backend storage, wiredtiger.
 
 
 0.5
 ---
-
-There is probably issues regarding encoding. I think there is no way to make
-the situations better without moving to python3.
 
 - ajgudb
 
@@ -44,8 +42,8 @@ the situations better without moving to python3.
 
 - gremlin:
 
-  - add `keys` to retrieve several keys at the same time
-  - use lazy `itertools.imap` instead of the gready python2's `map`
+  - add ``keys`` to retrieve several keys at the same time
+  - use lazy ``itertools.imap`` instead of the gready python2's ``map``
 
 
 0.4.2
@@ -82,42 +80,23 @@ Create or open a database at ``path``
 
 ``AjguDB.close()``
 ~~~~~~~~~~~~~~~~~~
-close the database.
+Close the database.
 
-``AjguDB.get(uid)``
+``AjguDB.get(key, value)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+Associate ``key`` with ``value`` against the graph.
+
+Graph key/value are stores on their own storage backend.
+
+``AjguDB.get(key)``
 ~~~~~~~~~~~~~~~~~~~
-Retrieve ``Vertex`` or ``Edge`` with ``uid`` as identifier.
+Retrieve the value associated with ``key``. Raise ``KeyError`` if the key is not
+found. 
 
-``AjguDB.vertex(**properties)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Create a new vertes with ``properties`` as initial properties.
-
-``AjguDB.get_or_create(**properties)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Get or create ``Vertex`` with the provided ``properties``.
-
-``AjguDB.one(**properties)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Get a vertex or edge that match the given ``properties`` or return `None`.
-
-``AjguDB.query(*steps)``
-~~~~~~~~~~~~~~~~~~~~~~~~
-Create a query against this graph using gremlin `steps`. This returns a function
-that can take an iterator, an edge, a vertex or nothing as arguments. It depends
-of the query.
-
-Here is an exemple query against movielens that takes a vertex as first argument:
-
-.. code::
-
-   query = db.query(incomings, filter(isgood), count)
-
-If you want to know the number of good rating that a `movie` has received use
-call `query` as follow:
-
-.. code::
-
-   good_rating_count = query(movie)
+``AjguDB.remove(key)``
+~~~~~~~~~~~~~~~~~~~~~~
+Remove the key/value pair associated with ``key``. Raise ``KeyError`` if the
+``key`` is not found.
 
 
 ``Vertex``

@@ -327,6 +327,37 @@ class Edges(object):
             return start, label, end, unpack(data)
 
 
+class Collection(object):
+
+    def __init__(self, session):
+        self._session = session
+
+        # storage table
+        session.create(
+            'table:collection',
+            'key_format=S,value_format=S'
+        )
+        self._cursor = session.open_cursor('table:collection')
+
+    def set(self, key, value):
+        self._cursor.set_key(key)
+        self._cursor.set_value(pack(value))
+        self._cursor.insert()
+
+    def get(self, key):
+        self._cursor.set_key(key)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError(key)
+        return unpack(self._cursor.get_value())
+
+    def remove(self, key):
+        self._cursor.set_key(key)
+        if self._cursor.search() == WT_NOT_FOUND:
+            raise KeyError(key)
+        self._cursor.remove()
+        return True
+
+
 class Storage(object):
     """Generic database"""
 
@@ -335,6 +366,7 @@ class Storage(object):
         self._session = self._wiredtiger.open_session()
         self.edges = Edges(self._session)
         self.vertices = Vertices(self._session)
+        self.collection = Collection(self._session)
 
     def close(self):
         self._wiredtiger.close()

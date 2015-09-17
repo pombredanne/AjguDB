@@ -74,6 +74,31 @@ class DatabaseTestCase(TestCase):
         self.assertTrue(start.outgoings())
         self.assertTrue(end.incomings())
 
+    def test_set_get_set_get(self):
+        self.graph.set('key', 'value')
+        self.assertEqual(self.graph.get('key'), 'value')
+        self.graph.set('key', 'value deux')
+        self.assertEqual(self.graph.get('key'), 'value deux')
+
+    def test_set_get(self):
+        self.graph.set('key', 'value')
+        self.assertEqual(self.graph.get('key'), 'value')
+
+    def test_set_get_dict(self):
+        expected = dict(key='value')
+        self.graph.set('key', expected)
+        self.assertEqual(self.graph.get('key'), expected)
+
+    def test_set_remove_get(self):
+        self.graph.set('key', 'value')
+        self.graph.remove('key')
+        with self.assertRaises(KeyError):
+            self.graph.get('key')
+
+    def test_remove(self):
+        with self.assertRaises(KeyError):
+            self.graph.remove('key')
+
 
 class TestGremlin(TestCase):
 

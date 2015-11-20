@@ -8,16 +8,16 @@
 - schemaless
 - single thread
 - transaction-less
-- LGPLv2.1 or later
+- GPLv2 or GPLv3
 
-AjguDB wants to be a fast enough python graph database for exploring connected
-data in.
+AjguDB wants to be a fast enough python graph database for exploring connected data.
 
 ChangeLog
 =========
 
 0.7
 ---
+
 
 - ajgudb: you can threat ``AjguDB`` as simple key/value store via its methods
   ``AjguDB.get(key)``, ``AjguDB.set(key, value)`` and ``AjguDB.remove(key)``

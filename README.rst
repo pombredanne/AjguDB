@@ -86,7 +86,7 @@ Close the database.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 Associate ``key`` with ``value`` against the graph.
 
-Graph key/value are stores on their own storage backend.
+Graph key/value are stored on their own storage backend.
 
 ``AjguDB.get(key)``
 ~~~~~~~~~~~~~~~~~~~
@@ -101,9 +101,8 @@ Remove the key/value pair associated with ``key``. Raise ``KeyError`` if the
 
 ``Vertex``
 ----------
-
-``Vertex`` inherit the dictionary, so you can use ``dict`` method to access
-its properties as dictionary key.
+``Vertex`` class inherit ``dict``, so that you can use ``dict`` method to access
+its *graph properties* as dictionary key.
 
 ``Vertex.uid``
 ~~~~~~~~~~~~~~
@@ -156,8 +155,8 @@ Delete the ``Edge`` object.
 ``gremlin``
 -----------
 
-This where the magic happens. You can query the graph by composing steps. It is
-similar to tinkerpop's `Gremlin language <http://gremlindocs.spmallette.documentup.com>`_.
+You can query the graph by composing steps. It is similar to tinkerpop's
+`Gremlin language <http://gremlindocs.spmallette.documentup.com>`_.
 
 This are the functions that you have to use to query the graph using
 `AjguDB.query`.
@@ -185,7 +184,6 @@ Here are the provided steps:
 - ``scatter`` unroll the content of the iterator
 
 They are a few steps missing compared to gremlin reference implementation.
-That said, you can easily implement them yourself:
 
 Missing steps with comments:
 

@@ -1,3 +1,5 @@
+# AjuDB - wiredtiger powered graph database
+# Copyright (C) 2015 Amirouche Boubekki <amirouche@hypermove.net>
 from .gremlin import vertices
 from .gremlin import edges
 from .gremlin import get

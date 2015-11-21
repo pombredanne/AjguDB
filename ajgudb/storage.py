@@ -468,7 +468,7 @@ class Trigrams(object):
                     break
                 yield word[i:i+3]
 
-        trigrams = iter()
+        trigrams = list(iter())
         if WORD_LENGTH % 3 != 0:
             trigrams.append(word[-3:])
 
@@ -478,8 +478,8 @@ class Trigrams(object):
         trigrams = self.trigrams(word)
         for trigram in trigrams:
             self._cursor.set_key(trigram)
-            if self._cursor.search():
-                value = self.cursor.get_value()
+            if self._cursor.search() != WT_NOT_FOUND:
+                value = self._cursor.get_value()
                 value = unpack(value)
                 value.append(uid)
                 self._cursor.set_value(pack(value))
@@ -492,7 +492,7 @@ class Trigrams(object):
         trigrams = self.trigrams(word)
         for trigram in trigrams:
             self._cursor.set_key(trigram)
-            if self._cursor.search():
+            if self._cursor.search() != WT_NOT_FOUND:
                 value = self._cursor.get_value()
                 value = unpack(value)
                 value.remove(uid)
@@ -508,13 +508,13 @@ class Trigrams(object):
         out = list()
         for trigram in trigrams:
             self._cursor.set_key(trigram)
-            if self._cursor.search():
+            if self._cursor.search() != WT_NOT_FOUND:
                 value = self._cursor.get_value()
                 value = unpack(value)
                 out.extend(value)
             else:
                 continue
-        return Counter(out).most_commom(limit)
+        return Counter(out).most_common(limit)
 
 
 class Storage(object):
@@ -526,9 +526,8 @@ class Storage(object):
         self.edges = Edges(self._session)
         self.vertices = Vertices(self._session)
         self.collection = Collection(self._session)
-        # FIXME:
-        # self.trigrams_vertices = Trigrams('vertices', self._session)
-        # self.trigrams_edges = Trigrams('edges', self._session)
+        self.trigrams_vertices = Trigrams('vertices', self._session)
+        self.trigrams_edges = Trigrams('edges', self._session)
 
     def close(self):
         self._wiredtiger.close()

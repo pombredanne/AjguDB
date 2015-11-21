@@ -59,7 +59,6 @@ class DatabaseTestCase(TestCase):
     def test_create_with_properties_and_get_vertex(self):
         v = self.graph.vertex.create('test', key='value')
         v = self.graph.vertex.get(v.uid)
-
         self.assertEqual(v['key'], 'value')
 
     def test_create_modify_and_get_edge(self):
@@ -144,6 +143,42 @@ class DatabaseTestCase(TestCase):
         edge['key'] = 'monkey'
         edge.save()
         self.assertEqual(edge['key'], 'monkey')
+
+    def test_fuzzy_search_vertex_one(self):
+        valid = self.graph.vertex.create('valid')
+        valid.fuzzy_index('accurate')
+        invalid = self.graph.vertex.create('invalid')
+        invalid.fuzzy_index('fuzzy')
+        # search
+        results = self.graph.vertex.fuzzy_search('accute')
+        self.assertEqual(len(results), 1)
+        uid, score = results[0]
+        self.assertEqual(uid, valid.uid)
+
+    def test_fuzzy_search_vertex_two(self):
+        one = self.graph.vertex.create('beauty')
+        one.fuzzy_index('beauty')
+        invalid = self.graph.vertex.create('beautiful')
+        invalid.fuzzy_index('beautiful')
+        # search
+        results = self.graph.vertex.fuzzy_search('beauti')
+        expected = [(2, 2), (1, 1)]
+        self.assertEqual(results, expected)
+
+
+    def test_fuzzy_search_edge(self):
+        start = self.graph.vertex.create('start')
+        end = self.graph.vertex.create('end')
+
+        related_to = start.link('related to', end)
+        related_to.fuzzy_index('related to')
+        in_relation = start.link('in relation', end)
+        in_relation.fuzzy_index('in relation')
+
+        # search
+        results = self.graph.edge.fuzzy_search('relate')
+        expected = [(1, 2), (2, 1)]
+        self.assertEqual(results, expected)
 
 
 class TestGremlin(TestCase):

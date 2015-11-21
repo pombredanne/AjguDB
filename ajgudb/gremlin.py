@@ -58,7 +58,7 @@ def select_vertices(**kwargs):
 
     def step(graphdb, _):
         for uid in graphdb._storage.vertices.keys(key, value):
-            yield GremlinResult(uid, None, Vertex)
+            yield GremlinResult(uid, None, VERTEX)
 
     return step
 

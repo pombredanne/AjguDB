@@ -13,6 +13,9 @@ class Base(dict):
             return self.uid == other.uid
         return False
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __repr__(self):
         return '<%s %s>' % (type(self).__name__, self.uid)
 

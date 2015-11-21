@@ -31,6 +31,17 @@ class DatabaseTestCase(TestCase):
         idem = self.graph.vertex.get(v.uid)
         self.assertEqual(v, idem)
 
+    def test_different_same_type(self):
+        v1 = self.graph.vertex.create('test')
+        v2 = self.graph.vertex.create('test')
+        self.assertNotEqual(v1, v2)
+
+    def test_different_different_type(self):
+        start = self.graph.vertex.create('test')
+        end = self.graph.vertex.create('test')
+        edge = start.link('link', end)
+        self.assertNotEqual(start, edge)
+
     def test_get_or_create(self):
         v = self.graph.vertex.get_or_create('test')
         self.assertIsNotNone(v)

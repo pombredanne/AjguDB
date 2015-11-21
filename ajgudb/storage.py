@@ -1,9 +1,12 @@
 # AjuDB - wiredtiger powered graph database
 # Copyright (C) 2015 Amirouche Boubekki <amirouche@hypermove.net>
+from collections import Counter
+
 from wiredtiger import wiredtiger_open
 
 from utils import pack
 from utils import unpack
+from utils import AjguDBException
 
 
 WT_NOT_FOUND = -31803
@@ -211,8 +214,14 @@ class Edges(object):
             'columns=(end,id)'
         )
         self._incomings = session.open_cursor('index:edges:incomings')
+
         # store indexed property keys
         self._indices = list()
+        session.create(
+            'table:edges-keys',
+            'key_format=SSQ,value_format=S'
+        )
+        self._keys = session.open_cursor('table:edges-keys')
 
     def identifiers(self, label):
         """Look for edges which have the given `label`"""
@@ -433,7 +442,7 @@ class Collection(object):
 
 
 class Storage(object):
-    """Generic database"""
+    # FIXME: move this to AjguDB class
 
     def __init__(self, path):
         self._wiredtiger = wiredtiger_open(path, 'create,cache_size=10GB')

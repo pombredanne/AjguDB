@@ -63,6 +63,18 @@ def select_vertices(**kwargs):
     return step
 
 
+def select_edges(**kwargs):
+    if len(kwargs.items()) > 1:
+        raise Exception('Only one key/value pair is supported')
+    key, value = kwargs.items()[0]
+
+    def step(graphdb, _):
+        for uid in graphdb._storage.edges.keys(key, value):
+            yield GremlinResult(uid, None, EDGE)
+
+    return step
+
+
 def where(**kwargs):
     """Iterator that selects elements that match the `kwargs` specification"""
     def step(graphdb, iterator):

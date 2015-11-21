@@ -92,7 +92,7 @@ class VertexManager(object):
     def __init__(self, graphdb):
         self._graphdb = graphdb
 
-    def index(self, name):
+    def key_index(self, name):
         self._graphdb._storage.vertices._indices.append(name)
 
     def create(self, label, **properties):
@@ -135,7 +135,7 @@ class EdgeManager(object):
     def __init__(self, graphdb):
         self._graphdb = graphdb
 
-    def index(self, name):
+    def key_index(self, name):
         self._graphdb._storage.edges._indices.append(name)
 
     def get(self, uid):

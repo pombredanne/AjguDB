@@ -167,8 +167,8 @@ class TestGremlin(TestCase):
         count = len(list(query(self.graph, seed)))
         self.assertEqual(count, 1)
 
-    def test_select_vertices(self):
-        self.graph.vertex.index('key')
+    def test_select_and_key_index_vertices(self):
+        self.graph.vertex.key_index('key')
 
         self.graph.vertex.create('seed', key='one')
         self.graph.vertex.create('seed', key='one')
@@ -183,6 +183,23 @@ class TestGremlin(TestCase):
         )
         count = query(self.graph)
         self.assertEqual(count, 4)
+
+    def test_select_and_key_index_edges(self):
+        self.graph.edge.key_index('key')
+
+        start = self.graph.vertex.create('start')
+        end = self.graph.vertex.create('end')
+
+        start.link('link', end, key='two')
+        start.link('link', end, key='two')
+        start.link('link', end, key='one')
+
+        query = gremlin.query(
+            gremlin.select_edges(key='one'),
+            gremlin.count
+        )
+        count = query(self.graph)
+        self.assertEqual(count, 1)
 
     def test_limit(self):
         seed = self.graph.vertex.create('seed')

@@ -125,10 +125,6 @@ class VertexManager(object):
         else:
             return self._graphdb.vertex.create(label, **properties)
 
-    def query(self, *steps):
-        import gremlin
-        return gremlin.query(gremlin.vertices(), *steps)(self.graphdb)
-
 
 class EdgeManager(object):
 
@@ -163,10 +159,6 @@ class EdgeManager(object):
             return element
         else:
             return self.vertex(label, **properties)
-
-    def query(self, *steps):
-        import gremlin
-        return gremlin.query(gremlin.edges(), *steps)(self.graphdb)
 
 
 class AjguDB(object):

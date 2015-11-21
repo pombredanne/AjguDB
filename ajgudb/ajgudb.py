@@ -5,9 +5,6 @@ from .storage import Storage
 
 class Base(dict):
 
-    def delete(self):
-        self._graphdb._tuples.delete(self.uid)
-
     def __eq__(self, other):
         if isinstance(other, type(self)):
             return self.uid == other.uid

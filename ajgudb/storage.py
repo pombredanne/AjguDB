@@ -441,6 +441,82 @@ class Collection(object):
         return True
 
 
+class Trigrams(object):
+    """Trigram character table
+
+    Fuzzy search is implemented using this table definition.
+    it provides three methods.
+
+    .. warning:: Elements must be explicitly indexed and deleted.
+    """
+
+    def __init__(self, name, session):
+        self._session = session
+        # storage table
+        session.create(
+            'table:trigrams-' + name,
+            'key_format=S,value_format=S'
+        )
+        self._cursor = session.open_cursor('table:collection')
+
+    def trigrams(self, word):
+        WORD_LENGTH = len(word)
+
+        def iter():
+            for i in range(0, WORD_LENGTH, 3):
+                if WORD_LENGTH - i < 3:
+                    break
+                yield word[i:i+3]
+
+        trigrams = iter()
+        if WORD_LENGTH % 3 != 0:
+            trigrams.append(word[-3:])
+
+        return trigrams
+
+    def index(self, word, uid):
+        trigrams = self.trigrams(word)
+        for trigram in trigrams:
+            self._cursor.set_key(trigram)
+            if self._cursor.search():
+                value = self.cursor.get_value()
+                value = unpack(value)
+                value.append(uid)
+                self._cursor.set_value(pack(value))
+                self._cursor.update()
+            else:
+                self._cursor.set_value(pack([uid]))
+                self._cursor.insert()
+
+    def delete(self, word, uid):
+        trigrams = self.trigrams(word)
+        for trigram in trigrams:
+            self._cursor.set_key(trigram)
+            if self._cursor.search():
+                value = self._cursor.get_value()
+                value = unpack(value)
+                value.remove(uid)
+                self._cursor.set_value(pack(value))
+                self._cursor.update()
+            else:
+                msg = 'uid %s not found for trigram character %s'
+                msg = msg % (uid, trigram)
+                raise AjguDBException(msg)
+
+    def search(self, word, limit=10):
+        trigrams = self.trigrams(word)
+        out = list()
+        for trigram in trigrams:
+            self._cursor.set_key(trigram)
+            if self._cursor.search():
+                value = self._cursor.get_value()
+                value = unpack(value)
+                out.extend(value)
+            else:
+                continue
+        return Counter(out).most_commom(limit)
+
+
 class Storage(object):
     # FIXME: move this to AjguDB class
 
@@ -450,6 +526,9 @@ class Storage(object):
         self.edges = Edges(self._session)
         self.vertices = Vertices(self._session)
         self.collection = Collection(self._session)
+        # FIXME:
+        # self.trigrams_vertices = Trigrams('vertices', self._session)
+        # self.trigrams_edges = Trigrams('edges', self._session)
 
     def close(self):
         self._wiredtiger.close()
